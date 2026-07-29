@@ -1,53 +1,73 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const tintColorLight = '#84CC16'; // Lime Green accent
+const tintColorDark = '#BEF264';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: '#0F172A',
+    textMuted: '#64748B',
+    background: '#F8FAFC',
+    cardBackground: '#FFFFFF',
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#64748B',
+    tabIconDefault: '#94A3B8',
     tabIconSelected: tintColorLight,
+    limeBanner: '#D9F99D',
+    limeDark: '#4D7C0F',
+    emerald: '#10B981',
+    proGold: '#F59E0B',
+    border: 'rgba(0, 0, 0, 0.06)',
+    cardShadow: 'rgba(0, 0, 0, 0.04)',
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: '#F8FAFC',
+    textMuted: '#94A3B8',
+    background: '#090D16',
+    cardBackground: '#131C2E',
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: '#94A3B8',
+    tabIconDefault: '#475569',
     tabIconSelected: tintColorDark,
+    limeBanner: 'rgba(190, 242, 100, 0.18)',
+    limeDark: '#BEF264',
+    emerald: '#10B981',
+    proGold: '#F59E0B',
+    border: 'rgba(255, 255, 255, 0.08)',
+    cardShadow: 'rgba(0, 0, 0, 0.3)',
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+export const Fonts = {
+  sans: 'System',
+  mono: 'SpaceMono',
+  rounded: 'System',
+};
+
+export const MonetizationPlans = {
+  weekly: {
+    id: 'weekly',
+    name: 'Weekly Pass',
+    price: '$4.99',
+    period: '/ week',
+    description: '3-Day Free Trial • Cancel anytime',
+    badge: 'MOST POPULAR',
+    mrrEquivalent: 21.62,
   },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+  monthly: {
+    id: 'monthly',
+    name: 'Monthly PRO',
+    price: '$14.99',
+    period: '/ month',
+    description: 'Save 30% vs weekly billing',
+    badge: 'SAVE 30%',
+    mrrEquivalent: 14.99,
   },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+  yearly: {
+    id: 'yearly',
+    name: 'Annual VIP',
+    price: '$59.99',
+    period: '/ year',
+    description: '$4.99 / month billed annually',
+    badge: 'BEST VALUE (70% OFF)',
+    mrrEquivalent: 4.99,
   },
-});
+};

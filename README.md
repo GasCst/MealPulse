@@ -1,50 +1,96 @@
-# Welcome to your Expo app 👋
+# 🥗 MealPulse AI — AI-Powered Vision Nutritionist & Macro Scanner
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**MealPulse AI** is a state-of-the-art mobile application built with **React Native (Expo SDK 54)** and powered by **Google Gemini Vision AI** & **OpenAI GPT-4o-mini**. It enables users to snap a photo of any food plate or fruit, automatically count individual items (e.g. 5 walnuts, 3 eggs), estimate volumetric portion weights in grams, calculate precise macros (calories, protein, carbs, fat), and sync everything securely to a **Supabase Cloud Database**.
 
-## Get started
+---
 
-1. Install dependencies
+## ✨ Features
 
-   ```bash
-   npm install
-   ```
+- 📸 **Real-Time AI Vision Scanner**:
+  - Analyzes food photos instantly using Google Gemini 2.0 / 2.5 Flash & OpenAI Vision.
+  - Recognizes dish names, freshness, and food types with up to 99% accuracy.
+- ⚖️ **Object Counting & Volumetric Weight Math**:
+  - Counts individual items in photos (e.g. 5 walnuts, 12 grapes).
+  - Calculates total portion weight in grams (`count × unit_weight = total_grams`).
+- ☁️ **Per-Account Supabase Cloud Persistence**:
+  - Automatically saves scanned meals, macros, timestamps, and food photos attached to user account IDs (`user_id`).
+  - Automatically resets daily intake targets while preserving complete historical logs in the cloud.
+- 📜 **Date-by-Date Meal History Timeline**:
+  - Interactive history browser displaying past days' meal scans with calories, macros, and photo thumbnails.
+- 💧 **Hydration Tracker**:
+  - Glass-by-glass daily water intake counter with target goal tracking.
+- 🔑 **Dynamic Key & Auth System**:
+  - Supports Google OAuth & Email authentication via Supabase Auth.
+  - In-app Custom API Key configurator allowing custom Gemini & OpenAI keys.
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## 🛠️ Tech Stack
 
-In the output, you'll find options to open the app in a
+- **Framework**: [Expo SDK 54](https://docs.expo.dev/) (React Native with TypeScript)
+- **Routing**: [Expo Router v4](https://docs.expo.dev/router/introduction/) (File-based navigation)
+- **AI Models**:
+  - [Google Gemini REST API](https://ai.google.dev/) (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-flash-latest`)
+  - [OpenAI GPT-4o-mini Vision API](https://platform.openai.com/)
+- **Backend & Cloud DB**: [Supabase](https://supabase.com/) (PostgreSQL, Auth, RLS Policies)
+- **Monetization & Purchases**: [RevenueCat SDK](https://www.revenuecat.com/)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+---
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 🚀 Getting Started
 
-## Get a fresh project
+### 1. Prerequisites
+- Node.js (v18 or higher)
+- npm or yarn
+- [Expo Go app](https://expo.dev/go) on your Android or iOS device
 
-When you're ready, run:
-
+### 2. Installation
+Clone the repository and install dependencies:
 ```bash
-npm run reset-project
+git clone https://github.com/your-username/mealpulse-ai.git
+cd mealpulse-ai
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 3. Environment Setup
+Create a `.env` file in the root directory (based on `.env.example`):
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+EXPO_PUBLIC_GEMINI_API_KEY=AIzaSyYourGoogleGeminiApiKey
+EXPO_PUBLIC_OPENAI_API_KEY=sk-proj-YourOpenAIApiKey
+```
 
-## Learn more
+### 4. Database Setup (Supabase)
+Run the SQL migration script located in `supabase_schema.sql` inside your Supabase project's **SQL Editor** to create the `profiles`, `subscriptions`, and `meal_logs` tables with Row Level Security.
 
-To learn more about developing your project with Expo, look at the following resources:
+### 5. Running Locally
+Start the Expo development server:
+```bash
+npx expo start -c
+```
+Scan the QR code using the **Expo Go app** on your mobile device.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+## 🤖 Android Deployment (Google Play Store)
 
-Join our community of developers creating universal apps.
+To build and deploy MealPulse AI to the Google Play Store:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+1. **Install EAS CLI & Log In**:
+   ```bash
+   npm install -g eas-cli
+   eas login
+   ```
+2. **Build Android Production App Bundle (`.aab`)**:
+   ```bash
+   eas build --platform android --profile production
+   ```
+3. **Upload `.aab` to Google Play Console**:
+   - Download the generated `.aab` file from EAS.
+   - Upload to **Google Play Console ➔ Production Release**.
+
+---
+
+## 📄 License
+This project is licensed under the MIT License.
