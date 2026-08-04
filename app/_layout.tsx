@@ -14,13 +14,27 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+import mobileAds from 'react-native-google-mobile-ads';
 import { NotificationPromptModal } from '@/components/NotificationPromptModal';
 
 export default function RootLayout() {
   useEffect(() => {
-    // Initialize RevenueCat In-App Purchases & Expo Push Notifications
+    // Safely initialize native SDKs without crashing startup thread
     if (!isExpoGo) {
-      RevenueCatService.configure();
+      try {
+        RevenueCatService.configure();
+      } catch (e) {
+        console.warn('[RootLayout] RevenueCat init warning:', e);
+      }
+      try {
+        mobileAds().initialize().then(() => {
+          console.log('[RootLayout] Google Mobile Ads initialized.');
+        }).catch((err) => {
+          console.warn('[RootLayout] MobileAds init promise warning:', err);
+        });
+      } catch (e) {
+        console.warn('[RootLayout] MobileAds init warning:', e);
+      }
     }
   }, []);
 
