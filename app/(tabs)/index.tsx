@@ -22,6 +22,7 @@ import { SupabaseService } from '@/services/supabaseService';
 import { ProfileModal } from '@/components/ProfileModal';
 import { NotificationModal } from '@/components/NotificationModal';
 import { analyzeMealPlateImage, MealVisionResult } from '@/services/aiVisionService';
+import { AdScanModal } from '@/components/AdScanModal';
 
 interface LoggedMeal {
   id: string;
@@ -37,25 +38,36 @@ interface LoggedMeal {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, isPro, freeUsageCount, maxFreeUsage, recordUsage, openPaywall } = useSubscription();
+  const { user, isPro, freeUsageCount, maxFreeUsage, recordUsage, openPaywall, targetCalories } = useSubscription();
 
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest User';
   const avatarUrl = user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
 
-  const [meals, setMeals] = useState<LoggedMeal[]>([]);
+  const [mealsByDate, setMealsByDate] = useState<Record<string, LoggedMeal[]>>({});
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  const getDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const selectedDateKey = getDateKey(selectedDate);
+  const meals = mealsByDate[selectedDateKey] || [];
 
   useEffect(() => {
-    loadTodayMealsFromCloud();
-  }, [user]);
+    loadMealsForDate(selectedDate);
+  }, [user, selectedDateKey]);
 
-  const loadTodayMealsFromCloud = async () => {
+  const loadMealsForDate = async (targetDate: Date) => {
+    const key = getDateKey(targetDate);
+
     if (!user?.id) {
-      setMeals([]);
       return;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const cloudLogs = await SupabaseService.fetchMealLogsByUserAndDate(user.id, todayStr);
+    const cloudLogs = await SupabaseService.fetchMealLogsByUserAndDate(user.id, key);
 
     if (cloudLogs && cloudLogs.length > 0) {
       const mapped: LoggedMeal[] = cloudLogs.map((m) => ({
@@ -71,19 +83,118 @@ export default function HomeScreen() {
           ? new Date(m.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           : 'Today',
       }));
-      setMeals(mapped);
-    } else {
-      setMeals([]);
+      setMealsByDate((prev) => ({
+        ...prev,
+        [key]: mapped,
+      }));
     }
+  };
+
+  const getWeekDays = (centerDate: Date) => {
+    const days = [];
+    for (let i = -3; i <= 3; i++) {
+      const d = new Date(centerDate);
+      d.setDate(centerDate.getDate() + i);
+      days.push(d);
+    }
+    return days;
   };
 
   // Modal States
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false);
+  const [showAdScanModal, setShowAdScanModal] = useState(false);
+  const [pendingBase64, setPendingBase64] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<MealVisionResult | null>(null);
+
+  // Meal Detail / Edit / Delete Modal State
+  const [selectedMealForDetail, setSelectedMealForDetail] = useState<LoggedMeal | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isEditingMeal, setIsEditingMeal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCalories, setEditCalories] = useState('');
+  const [editProtein, setEditProtein] = useState('');
+  const [editCarbs, setEditCarbs] = useState('');
+  const [editFat, setEditFat] = useState('');
+
+  const handleOpenMealDetail = (meal: LoggedMeal) => {
+    setSelectedMealForDetail(meal);
+    setEditName(meal.name);
+    setEditCalories(String(meal.calories));
+    setEditProtein(String(meal.protein));
+    setEditCarbs(String(meal.carbs));
+    setEditFat(String(meal.fat));
+    setIsEditingMeal(false);
+    setShowDetailModal(true);
+  };
+
+  const handleSaveMealEdit = async () => {
+    if (!selectedMealForDetail) return;
+
+    const updatedMeal: LoggedMeal = {
+      ...selectedMealForDetail,
+      name: editName || selectedMealForDetail.name,
+      calories: Number(editCalories) || selectedMealForDetail.calories,
+      protein: Number(editProtein) || selectedMealForDetail.protein,
+      carbs: Number(editCarbs) || selectedMealForDetail.carbs,
+      fat: Number(editFat) || selectedMealForDetail.fat,
+    };
+
+    const key = selectedDateKey;
+    setMealsByDate((prev) => ({
+      ...prev,
+      [key]: (prev[key] || []).map((m) => (m.id === selectedMealForDetail.id ? updatedMeal : m)),
+    }));
+
+    if (user?.id && selectedMealForDetail.id) {
+      await SupabaseService.updateMealLog(selectedMealForDetail.id, {
+        food_name: updatedMeal.name,
+        calories: updatedMeal.calories,
+        protein_g: updatedMeal.protein,
+        carbs_g: updatedMeal.carbs,
+        fat_g: updatedMeal.fat,
+      });
+    }
+
+    setSelectedMealForDetail(updatedMeal);
+    setIsEditingMeal(false);
+    Alert.alert('Meal Updated', `${updatedMeal.name} details have been updated successfully.`);
+  };
+
+  const handleDeleteMeal = async () => {
+    if (!selectedMealForDetail) return;
+
+    Alert.alert(
+      'Delete Meal',
+      `Are you sure you want to delete ${selectedMealForDetail.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const mealId = selectedMealForDetail.id;
+            const key = selectedDateKey;
+
+            setMealsByDate((prev) => ({
+              ...prev,
+              [key]: (prev[key] || []).filter((m) => m.id !== mealId),
+            }));
+
+            if (user?.id && mealId) {
+              await SupabaseService.deleteMealLog(mealId);
+            }
+
+            setShowDetailModal(false);
+            setSelectedMealForDetail(null);
+          },
+        },
+      ]
+    );
+  };
 
   // Custom API Key modal state
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -91,11 +202,32 @@ export default function HomeScreen() {
 
   // Calculate Totals
   const totalCalories = meals.reduce((acc, m) => acc + m.calories, 0);
-  const targetCalories = 1920;
+
+  const triggerScanFlow = (base64: string, imageUri: string) => {
+    setCapturedImageUri(imageUri);
+    setPendingBase64(base64);
+
+    if (!isPro) {
+      // Free Tier: MUST watch sponsor ad BEFORE ScannerModal & AI vision analysis
+      setShowAdScanModal(true);
+    } else {
+      // PRO Tier: Instant scanning with 0 ads & 0 popups!
+      setShowScannerModal(true);
+      runAiAnalysis(base64);
+    }
+  };
+
+  const handleAdCompleted = () => {
+    setShowAdScanModal(false);
+    if (pendingBase64) {
+      // Launch Scanner Modal ONLY AFTER sponsor ad completes!
+      setShowScannerModal(true);
+      runAiAnalysis(pendingBase64);
+    }
+  };
 
   const handleLaunchCamera = async () => {
-    const allowed = recordUsage();
-    if (!allowed) return;
+    recordUsage();
 
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -112,15 +244,12 @@ export default function HomeScreen() {
 
     if (!result.canceled && result.assets[0]) {
       console.log(`[UI Camera Picked] Image URI: ${result.assets[0].uri}, base64 length: ${result.assets[0].base64?.length || 0}`);
-      setCapturedImageUri(result.assets[0].uri);
-      setShowScannerModal(true);
-      runAiAnalysis(result.assets[0].base64 || '');
+      triggerScanFlow(result.assets[0].base64 || '', result.assets[0].uri);
     }
   };
 
   const handleLaunchGallery = async () => {
-    const allowed = recordUsage();
-    if (!allowed) return;
+    recordUsage();
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -137,9 +266,7 @@ export default function HomeScreen() {
 
     if (!result.canceled && result.assets[0]) {
       console.log(`[UI Gallery Picked] Image URI: ${result.assets[0].uri}, base64 length: ${result.assets[0].base64?.length || 0}`);
-      setCapturedImageUri(result.assets[0].uri);
-      setShowScannerModal(true);
-      runAiAnalysis(result.assets[0].base64 || '');
+      triggerScanFlow(result.assets[0].base64 || '', result.assets[0].uri);
     }
   };
 
@@ -178,8 +305,12 @@ export default function HomeScreen() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    // Save to local UI state
-    setMeals((prev) => [newMeal, ...prev]);
+    // Save to local UI state for active date key
+    const currentKey = getDateKey(selectedDate);
+    setMealsByDate((prev) => ({
+      ...prev,
+      [currentKey]: [newMeal, ...(prev[currentKey] || [])],
+    }));
 
     // Save to Supabase Cloud DB per user account
     if (user?.id) {
@@ -194,7 +325,7 @@ export default function HomeScreen() {
         meal_type: 'Dinner',
         image_url: capturedImageUri || undefined,
       });
-      await loadTodayMealsFromCloud();
+      await loadMealsForDate(selectedDate);
     }
 
     setShowScannerModal(false);
@@ -221,17 +352,13 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <View style={styles.headerRightActions}>
-            {!user ? (
+            {!user && (
               <TouchableOpacity
                 style={styles.guestLoginPill}
                 onPress={() => router.push('/auth' as any)}
               >
                 <Ionicons name="log-in-outline" size={14} color="#0F172A" />
                 <Text style={styles.guestLoginPillText}>Sign In</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.circleIconBtn} onPress={() => setShowApiKeyModal(true)}>
-                <Ionicons name="key-outline" size={20} color="#1E293B" />
               </TouchableOpacity>
             )}
 
@@ -314,10 +441,6 @@ export default function HomeScreen() {
               <Ionicons name="camera" size={14} color="#84CC16" />
               <Text style={styles.aiBadgeText}>REAL AI VISION SCANNER</Text>
             </View>
-            <TouchableOpacity onPress={() => setShowApiKeyModal(true)} style={styles.keyBtn}>
-              <Ionicons name="key-outline" size={12} color="#84CC16" />
-              <Text style={styles.keyBtnText}>{customApiKey ? 'Key Active' : 'Set Key'}</Text>
-            </TouchableOpacity>
           </View>
 
           <Text style={styles.aiActionTitle}>Snap any Fruit or Meal Photo for Real AI Analysis</Text>
@@ -343,47 +466,79 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* August 2025 Calendar Strip */}
+        {/* Dynamic Interactive Calendar Strip */}
         <View style={styles.calendarSection}>
           <View style={styles.calendarHeaderRow}>
-            <Text style={styles.monthTitleText}>August 2025</Text>
-            <Ionicons name="chevron-forward" size={18} color="#64748B" />
+            <TouchableOpacity
+              style={styles.calNavBtn}
+              onPress={() => {
+                const prevWeek = new Date(selectedDate);
+                prevWeek.setDate(prevWeek.getDate() - 7);
+                setSelectedDate(prevWeek);
+              }}
+            >
+              <Ionicons name="chevron-back" size={18} color="#0F172A" />
+            </TouchableOpacity>
+
+            <Text style={styles.monthTitleText}>
+              {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.calNavBtn}
+              onPress={() => {
+                const nextWeek = new Date(selectedDate);
+                nextWeek.setDate(nextWeek.getDate() + 7);
+                setSelectedDate(nextWeek);
+              }}
+            >
+              <Ionicons name="chevron-forward" size={18} color="#0F172A" />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.daysFlexRow}>
-            {[
-              { day: 'S', date: '07' },
-              { day: 'M', date: '08' },
-              { day: 'T', date: '09' },
-              { day: 'W', date: '10', active: true },
-              { day: 'T', date: '11' },
-              { day: 'F', date: '12' },
-              { day: 'S', date: '13' },
-            ].map((item, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dayColumnCard,
-                  item.active && styles.activeDayColumnCard,
-                ]}
-              >
-                <Text style={[styles.dayLabelText, item.active && styles.activeDayText]}>
-                  {item.day}
-                </Text>
-                <Text style={[styles.dateNumText, item.active && styles.activeDateNumText]}>
-                  {item.date}
-                </Text>
-              </View>
-            ))}
+            {getWeekDays(selectedDate).map((dayObj, index) => {
+              const dayLabel = dayObj.toLocaleDateString(undefined, { weekday: 'narrow' });
+              const dateNum = dayObj.getDate().toString().padStart(2, '0');
+              const isSelected = dayObj.toDateString() === selectedDate.toDateString();
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.dayColumnCard,
+                    isSelected && styles.activeDayColumnCard,
+                  ]}
+                  onPress={() => setSelectedDate(dayObj)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.dayLabelText, isSelected && styles.activeDayText]}>
+                    {dayLabel}
+                  </Text>
+                  <Text style={[styles.dateNumText, isSelected && styles.activeDateNumText]}>
+                    {dateNum}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* Today's Logged Meals */}
+        {/* Today's / Selected Date's Logged Meals */}
         <View style={styles.mealsSection}>
-          <Text style={styles.mealsSectionTitle}>Today's Logged Meals</Text>
+          <Text style={styles.mealsSectionTitle}>
+            {selectedDate.toDateString() === new Date().toDateString()
+              ? "Today's Logged Meals"
+              : `Logged Meals (${selectedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`}
+          </Text>
 
           {meals.map((meal) => (
-            <View key={meal.id} style={styles.mealCard}>
+            <TouchableOpacity
+              key={meal.id}
+              style={styles.mealCard}
+              onPress={() => handleOpenMealDetail(meal)}
+              activeOpacity={0.85}
+            >
               <View style={styles.mealCardTop}>
                 <View style={styles.mealCatLeft}>
                   <Ionicons name="restaurant-outline" size={18} color="#84CC16" />
@@ -407,7 +562,7 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
@@ -547,8 +702,149 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* Meal Detail / Edit / Delete Modal */}
+      <Modal
+        visible={showDetailModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowDetailModal(false)}
+      >
+        <View style={styles.detailOverlay}>
+          <View style={styles.detailCard}>
+            {/* Header */}
+            <View style={styles.detailHeaderRow}>
+              <Text style={styles.detailTitleText}>
+                {isEditingMeal ? 'Edit Meal Details' : 'Meal Details'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowDetailModal(false)} style={styles.detailCloseBtn}>
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 500 }} contentContainerStyle={{ paddingBottom: 10 }}>
+              {selectedMealForDetail?.imageUri && (
+                <Image source={{ uri: selectedMealForDetail.imageUri }} style={styles.detailHeroImage} />
+              )}
+
+              {isEditingMeal ? (
+                <View style={styles.editFormBox}>
+                  <Text style={styles.editLabel}>Meal / Food Name</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editName}
+                    onChangeText={setEditName}
+                    placeholder="e.g. Pasta Vongole"
+                  />
+
+                  <View style={styles.editRowGrid}>
+                    <View style={styles.editGridCol}>
+                      <Text style={styles.editLabel}>Calories (kcal)</Text>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editCalories}
+                        onChangeText={setEditCalories}
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <View style={styles.editGridCol}>
+                      <Text style={styles.editLabel}>Protein (g)</Text>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editProtein}
+                        onChangeText={setEditProtein}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.editRowGrid}>
+                    <View style={styles.editGridCol}>
+                      <Text style={styles.editLabel}>Carbs (g)</Text>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editCarbs}
+                        onChangeText={setEditCarbs}
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <View style={styles.editGridCol}>
+                      <Text style={styles.editLabel}>Fat (g)</Text>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editFat}
+                        onChangeText={setEditFat}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.editActionRow}>
+                    <TouchableOpacity style={styles.saveEditBtn} onPress={handleSaveMealEdit}>
+                      <Ionicons name="checkmark" size={18} color="#0F172A" />
+                      <Text style={styles.saveEditBtnText}>Save Changes</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.cancelEditBtn} onPress={() => setIsEditingMeal(false)}>
+                      <Text style={styles.cancelEditBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.detailBodyBox}>
+                  <Text style={styles.detailFoodTitle}>{selectedMealForDetail?.name}</Text>
+                  <Text style={styles.detailCategorySub}>Category: {selectedMealForDetail?.category} • {selectedMealForDetail?.time}</Text>
+
+                  {/* 4 Macro Cards */}
+                  <View style={styles.detailMacroGrid}>
+                    <View style={styles.detailMacroBox}>
+                      <Ionicons name="flame" size={18} color="#F97316" />
+                      <Text style={styles.detailMacroVal}>{selectedMealForDetail?.calories} kcal</Text>
+                      <Text style={styles.detailMacroLbl}>Energy</Text>
+                    </View>
+
+                    <View style={styles.detailMacroBox}>
+                      <Ionicons name="fitness" size={18} color="#16A34A" />
+                      <Text style={styles.detailMacroVal}>{selectedMealForDetail?.protein}g</Text>
+                      <Text style={styles.detailMacroLbl}>Protein</Text>
+                    </View>
+
+                    <View style={styles.detailMacroBox}>
+                      <Ionicons name="nutrition" size={18} color="#F97316" />
+                      <Text style={styles.detailMacroVal}>{selectedMealForDetail?.carbs}g</Text>
+                      <Text style={styles.detailMacroLbl}>Carbs</Text>
+                    </View>
+
+                    <View style={styles.detailMacroBox}>
+                      <Ionicons name="pie-chart" size={18} color="#EF4444" />
+                      <Text style={styles.detailMacroVal}>{selectedMealForDetail?.fat}g</Text>
+                      <Text style={styles.detailMacroLbl}>Fat</Text>
+                    </View>
+                  </View>
+
+                  {/* Action Buttons: Edit and Delete */}
+                  <View style={styles.detailBtnRow}>
+                    <TouchableOpacity style={styles.editMealBtn} onPress={() => setIsEditingMeal(true)} activeOpacity={0.85}>
+                      <Ionicons name="create-outline" size={18} color="#0F172A" />
+                      <Text style={styles.editMealBtnText}>Edit Meal</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.deleteMealBtn} onPress={handleDeleteMeal} activeOpacity={0.85}>
+                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                      <Text style={styles.deleteMealBtnText}>Delete Meal</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <ProfileModal visible={showProfileModal} onClose={() => setShowProfileModal(false)} />
       <NotificationModal visible={showNotifModal} onClose={() => setShowNotifModal(false)} />
+      <AdScanModal visible={showAdScanModal} onAdCompleted={handleAdCompleted} onClose={() => setShowAdScanModal(false)} />
       <PaywallModal />
     </SafeAreaView>
   );
@@ -869,6 +1165,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  calNavBtn: {
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
   },
   monthTitleText: {
     fontSize: 16,
@@ -1213,5 +1514,171 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 14,
     fontWeight: '800',
+  },
+  detailOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  detailCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    width: '100%',
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    maxHeight: '85%',
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  detailTitleText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  detailCloseBtn: {
+    padding: 4,
+  },
+  detailHeroImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    marginBottom: 14,
+  },
+  detailBodyBox: {
+    gap: 12,
+  },
+  detailFoodTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  detailCategorySub: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  detailMacroGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginVertical: 6,
+  },
+  detailMacroBox: {
+    width: '48%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  detailMacroVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 4,
+  },
+  detailMacroLbl: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  detailBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  editMealBtn: {
+    flex: 1,
+    backgroundColor: '#BEF264',
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  editMealBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  deleteMealBtn: {
+    flex: 1,
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  deleteMealBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  editFormBox: {
+    gap: 10,
+  },
+  editLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  editInput: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  editRowGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  editGridCol: {
+    flex: 1,
+    gap: 4,
+  },
+  editActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  saveEditBtn: {
+    flex: 1,
+    backgroundColor: '#BEF264',
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  saveEditBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  cancelEditBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    justifyContent: 'center',
+  },
+  cancelEditBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
   },
 });

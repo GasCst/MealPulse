@@ -1,8 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://bjnqebnaboxufnxkngjb.supabase.co';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'demo-anon-key-mealpulse-ai';
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://bjnqebnaboxufnxkngjb.supabase.co';
+
+const SUPABASE_ANON_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqbnFlYm5hYm94dWZueGtuZ2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyMzA0NjMsImV4cCI6MjEwMDgwNjQ2M30.UmzVcEv8KnGS70iKvUa0CCTpMMdWdO2WWI6GQVb1oiQ';
 
 const memoryStorage = new Map<string, string>();
 
@@ -80,6 +84,32 @@ export class SupabaseService {
   }
 
   /**
+   * Updates an existing meal log record in Supabase Cloud DB
+   */
+  static async updateMealLog(id: string, updates: Partial<CloudMealLog>): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('meal_logs').update(updates).eq('id', id);
+      if (!error) return true;
+    } catch (e) {
+      console.warn('Supabase update notice:', e);
+    }
+    return false;
+  }
+
+  /**
+   * Deletes a meal log record from Supabase Cloud DB
+   */
+  static async deleteMealLog(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('meal_logs').delete().eq('id', id);
+      if (!error) return true;
+    } catch (e) {
+      console.warn('Supabase delete notice:', e);
+    }
+    return false;
+  }
+
+  /**
    * Fetches user meal history for a specific date (YYYY-MM-DD)
    */
   static async fetchMealLogsByUserAndDate(userId?: string, targetDate?: string): Promise<CloudMealLog[]> {
@@ -91,10 +121,22 @@ export class SupabaseService {
       }
 
       if (targetDate) {
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
+        let year: number, month: number, day: number;
+
+        if (typeof targetDate === 'string' && targetDate.includes('-')) {
+          const parts = targetDate.split('T')[0].split('-');
+          year = parseInt(parts[0], 10);
+          month = parseInt(parts[1], 10) - 1;
+          day = parseInt(parts[2], 10);
+        } else {
+          const d = new Date(targetDate);
+          year = d.getFullYear();
+          month = d.getMonth();
+          day = d.getDate();
+        }
+
+        const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
+        const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
 
         query = query.gte('logged_at', startOfDay.toISOString()).lte('logged_at', endOfDay.toISOString());
       }
@@ -207,6 +249,20 @@ export class SupabaseService {
     } catch (e) {
       console.warn('Subscription save notice:', e);
       return false;
+    }
+  }
+
+  /**
+   * Updates user profile fields in Supabase
+   */
+  static async updateUserProfile(userId: string, updates: Record<string, any>) {
+    try {
+      await supabase.from('profiles').update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      }).eq('id', userId);
+    } catch (e) {
+      console.warn('Update profile error:', e);
     }
   }
 }

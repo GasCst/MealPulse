@@ -4,8 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MonetizationPlans } from '@/constants/theme';
 import { RevenueCatService } from '@/services/revenueCatService';
 import { supabase, SupabaseService, ExpoGoSafeAsyncStorage } from '@/services/supabaseService';
+import { PurchaseService } from '@/services/purchaseService';
 
-export type PlanType = 'weekly' | 'monthly' | 'yearly';
+export type PlanType = 'weekly' | 'monthly' | 'yearly' | 'jackpot';
 export type AppMode = 'end_user' | 'creator_admin';
 
 interface SubscriptionContextType {
@@ -22,6 +23,8 @@ interface SubscriptionContextType {
   calculatedMrr: number;
   hasCompletedOnboarding: boolean;
   appMode: AppMode;
+  targetCalories: number;
+  primaryGoal: string;
   
   // Actions
   openPaywall: (source?: string) => void;
@@ -32,6 +35,10 @@ interface SubscriptionContextType {
   restorePurchases: () => Promise<boolean>;
   setCompletedOnboarding: (status: boolean) => Promise<void>;
   setAppMode: (mode: AppMode) => void;
+  setTargetCalories: (kcal: number) => Promise<void>;
+  setPrimaryGoal: (goal: string) => Promise<void>;
+  presentRevenueCatPaywall: () => Promise<boolean>;
+  presentCustomerCenter: () => Promise<void>;
 }
 
 const STORAGE_KEY = '@focus_pulse_subscription_v1';
@@ -48,6 +55,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [showPaywall, setShowPaywall] = useState<boolean>(false);
   const [paywallSource, setPaywallSource] = useState<string>('manual');
   const [hasCompletedOnboarding, setHasCompletedOnboardingState] = useState<boolean>(false);
+  const [targetCalories, setTargetCaloriesState] = useState<number>(1920);
+  const [primaryGoal, setPrimaryGoalState] = useState<string>('Lose Weight');
   
   // Simulated MRR Engine metrics for demonstration & goal tracking
   const [simulatedSubscribers, setSimulatedSubscribers] = useState<number>(84);
@@ -56,7 +65,23 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     loadSavedState();
 
-    // Listen to Supabase Auth state changes (Google OAuth, Email Login, Logout)
+    // 1. Initialize RevenueCat SDK
+    PurchaseService.init().then((info) => {
+      if (info) {
+        const isEntitled = PurchaseService.isEntitledToPro(info);
+        if (isEntitled) {
+          setIsPro(true);
+        }
+      }
+    });
+
+    // 2. Realtime listener for RevenueCat Customer Info (renewals/cancellations)
+    const listener = PurchaseService.addCustomerInfoUpdateListener((info) => {
+      const isEntitled = PurchaseService.isEntitledToPro(info);
+      setIsPro(isEntitled);
+    });
+
+    // 3. Listen to Supabase Auth state changes (Google OAuth, Email Login, Logout)
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setUser(session.user);
@@ -88,11 +113,14 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.log(`[DeepLink Handler] Received URL: ${event.url}`);
 
       if (event.url.includes('access_token') || event.url.includes('refresh_token')) {
-        const urlStr = event.url.replace('#', '?');
         try {
-          const urlObj = new URL(urlStr);
-          const accessToken = urlObj.searchParams.get('access_token');
-          const refreshToken = urlObj.searchParams.get('refresh_token');
+          const extractToken = (url: string, param: string) => {
+            const match = url.match(new RegExp(`[?&#]${param}=([^&]+)`));
+            return match ? decodeURIComponent(match[1]) : null;
+          };
+
+          const accessToken = extractToken(event.url, 'access_token');
+          const refreshToken = extractToken(event.url, 'refresh_token');
 
           if (accessToken && refreshToken) {
             console.log('[DeepLink Handler] Exchanging OAuth tokens with Supabase...');
@@ -160,28 +188,70 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const subscribe = async (planKey: PlanType): Promise<boolean> => {
-    // Attempt native RevenueCat In-App Purchase
-    const purchased = await RevenueCatService.purchasePlan(planKey);
-    
-    const isTrial = planKey === 'weekly';
-    setIsPro(true);
-    setCurrentPlan(planKey);
-    setIsTrialActive(isTrial);
-    setTrialDaysLeft(3);
-    setShowPaywall(false);
+    try {
+      // 1. Fetch available RevenueCat Offerings
+      const { packages } = await PurchaseService.getOfferings();
+      
+      const targetPackage = packages.find((p) => {
+        const id = p.product.identifier.toLowerCase();
+        const pkgId = p.identifier.toLowerCase();
+        if (planKey === 'jackpot') {
+          return id.includes('jackpot') || id.includes('299') || id.includes('80') || pkgId.includes('jackpot');
+        }
+        if (planKey === 'weekly') {
+          return id.includes('weekly') || pkgId.includes('weekly') || p.packageType === 'WEEKLY';
+        }
+        if (planKey === 'monthly') {
+          return id.includes('monthly') || pkgId.includes('monthly') || p.packageType === 'MONTHLY';
+        }
+        if (planKey === 'yearly') {
+          return id.includes('annual') || id.includes('yearly') || pkgId.includes('annual') || p.packageType === 'ANNUAL';
+        }
+        return false;
+      }) || packages.find((p) => p.product.identifier.includes('weekly')) || packages[0];
 
-    // If user is logged in, record paid subscription transaction to Supabase Cloud DB tables
-    if (user?.id) {
-      const planPrices: Record<PlanType, number> = { weekly: 4.99, monthly: 14.99, yearly: 59.99 };
-      await SupabaseService.saveUserSubscription(user.id, planKey, planPrices[planKey]);
+      if (!targetPackage) {
+        console.warn(`[SubscriptionContext] Target RevenueCat package not found for ${planKey}`);
+        return false;
+      }
+
+      console.log(`[SubscriptionContext] Purchasing package: ${targetPackage.product.identifier} (${targetPackage.product.priceString})`);
+
+      // 2. Execute Purchase with RevenueCat SDK
+      const purchaseResult = await PurchaseService.purchasePackage(targetPackage);
+
+      // 3. IF USER CANCELLED OR PAYMENT FAILED -> DO NOT GRANT PRO!
+      if (purchaseResult.userCancelled || !purchaseResult.success) {
+        console.log('[SubscriptionContext] Purchase was cancelled or unverified. Pro access not granted.');
+        return false;
+      }
+
+      // 4. VERIFIED PAYMENT -> Grant Pro Access
+      const isTrial = planKey === 'weekly';
+      setIsPro(true);
+      setCurrentPlan(planKey);
+      setIsTrialActive(isTrial);
+      setTrialDaysLeft(3);
+      setShowPaywall(false);
+
+      // 5. Persist real transaction to Supabase Cloud DB
+      if (user?.id) {
+        const planPrices: Record<PlanType, number> = { weekly: 4.99, monthly: 17.99, yearly: 74.99, jackpot: 2.99 };
+        await SupabaseService.saveUserSubscription(user.id, planKey, planPrices[planKey]);
+        await SupabaseService.updateUserProfile(user.id, { is_pro: true, current_plan: planKey });
+      }
+
+      await saveState({
+        isPro: true,
+        currentPlan: planKey,
+        isTrialActive: isTrial,
+      });
+
+      return true;
+    } catch (e: any) {
+      console.warn('[SubscriptionContext] Subscribe Exception:', e.message || e);
+      return false;
     }
-
-    await saveState({
-      isPro: true,
-      currentPlan: planKey,
-      isTrialActive: isTrial,
-    });
-    return purchased || true;
   };
 
   const cancelSubscription = async () => {
@@ -196,23 +266,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const recordUsage = (): boolean => {
-    if (isPro) return true;
-
-    if (freeUsageCount >= maxFreeUsage) {
-      openPaywall('limit_reached');
-      return false;
-    }
-
+    // Free users have unlimited photo picking capability, but MUST watch a sponsor ad per scan!
     const nextCount = freeUsageCount + 1;
     setFreeUsageCount(nextCount);
     saveState({ freeUsageCount: nextCount });
-
-    if (nextCount >= maxFreeUsage) {
-      setTimeout(() => {
-        openPaywall('limit_reached');
-      }, 500);
-    }
-
     return true;
   };
 
@@ -232,12 +289,32 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     await saveState({ hasCompletedOnboarding: status });
   };
 
+  const setTargetCalories = async (kcal: number) => {
+    setTargetCaloriesState(kcal);
+  };
+
+  const setPrimaryGoal = async (goal: string) => {
+    setPrimaryGoalState(goal);
+  };
+
   // Calculate MRR based on active subscribers
   const mrrPerSub = currentPlan ? MonetizationPlans[currentPlan].mrrEquivalent : 14.99;
   const totalSubscribers = simulatedSubscribers + (isPro ? 1 : 0);
   const calculatedMrr = Math.round(totalSubscribers * mrrPerSub);
 
   const [appMode, setAppMode] = useState<AppMode>('end_user');
+
+  const presentRevenueCatPaywall = async () => {
+    const purchased = await PurchaseService.presentPaywall();
+    if (purchased) {
+      setIsPro(true);
+    }
+    return purchased;
+  };
+
+  const presentCustomerCenter = async () => {
+    await PurchaseService.presentCustomerCenter();
+  };
 
   return (
     <SubscriptionContext.Provider
@@ -255,6 +332,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         calculatedMrr,
         hasCompletedOnboarding,
         appMode,
+        targetCalories,
+        primaryGoal,
         openPaywall,
         closePaywall,
         subscribe,
@@ -263,6 +342,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         restorePurchases,
         setCompletedOnboarding,
         setAppMode,
+        setTargetCalories,
+        setPrimaryGoal,
+        presentRevenueCatPaywall,
+        presentCustomerCenter,
       }}
     >
       {children}

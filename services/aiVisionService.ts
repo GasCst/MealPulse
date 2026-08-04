@@ -261,7 +261,9 @@ export async function analyzeMealPlateImage(
   }
 
   const inAppKey = userApiKey?.trim();
-  const envGeminiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
+  const envGeminiKey =
+    process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim() ||
+    'AQ.Ab8RN6JYx8SCCc6JIN9uPWNj2ad2DuH8bpdK3Jg2eLJ9AYxAXg';
   const envOpenAiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim();
 
   console.log(`[AI Vision Step 2] In-App Key set: ${inAppKey ? 'YES (' + inAppKey.substring(0, 6) + '...)' : 'NO'}`);
@@ -269,7 +271,7 @@ export async function analyzeMealPlateImage(
   console.log(`[AI Vision Step 2] ENV OpenAI Key set: ${envOpenAiKey ? 'YES (' + envOpenAiKey.substring(0, 6) + '...)' : 'NO'}`);
 
   // 1. Try Gemini Key first if available
-  const geminiKey = inAppKey && (inAppKey.startsWith('AIzaSy') || inAppKey.includes('AIzaSy')) ? inAppKey : envGeminiKey;
+  const geminiKey = inAppKey || envGeminiKey;
   if (geminiKey) {
     try {
       console.log('[AI Vision Step 2] Executing Google Gemini API Call...');

@@ -1,6 +1,7 @@
 import { supabase } from '@/services/supabaseService';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
+import * as Linking from 'expo-linking';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -57,10 +58,7 @@ export class AuthService {
     console.log('[Auth Step 1] Initiating Google OAuth Sign-In...');
 
     try {
-      const redirectUrl = makeRedirectUri({
-        scheme: 'mealpulse',
-        path: 'auth/callback',
-      });
+      const redirectUrl = Linking.createURL('auth/callback');
       console.log(`[Auth Step 2] Generated OAuth Redirect URI: ${redirectUrl}`);
 
       console.log('[Auth Step 3] Requesting Google OAuth URL from Supabase...');
@@ -77,42 +75,54 @@ export class AuthService {
 
       if (error) {
         console.error('[Auth Step 3 ERROR] Supabase OAuth URL generation failed:', error.message);
-        throw error;
+        return {
+          success: false,
+          error: error.message.includes('provider is not enabled')
+            ? 'Google Provider is not enabled in your Supabase Dashboard. Please enable Google in Supabase -> Auth -> Providers -> Google.'
+            : error.message,
+        };
       }
 
       console.log(`[Auth Step 4] Supabase returned OAuth Authorization URL: ${data?.url ? data.url.substring(0, 70) + '...' : 'NULL'}`);
 
       if (data?.url) {
         console.log('[Auth Step 5] Launching WebBrowser auth session...');
-        console.log(`[Auth Step 5] Browser URL: ${data.url}`);
+        console.log(`[Auth Step 5] Full OAuth Browser URL: ${data.url}`);
 
-        // Try openAuthSessionAsync first, fallback to openBrowserAsync for Expo Go on Android
         try {
           const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl, {
             showInRecents: true,
           });
 
-          console.log('[Auth Step 6] WebBrowser session resolved:', JSON.stringify(res));
+          console.log('[Auth Step 6] WebBrowser session result:', JSON.stringify(res));
 
           if (res.type === 'success' && res.url) {
             console.log(`[Auth Step 7] Callback URL received from browser: ${res.url}`);
 
-            const urlStr = res.url.replace('#', '?');
-            const urlObj = new URL(urlStr);
-            const accessToken = urlObj.searchParams.get('access_token');
-            const refreshToken = urlObj.searchParams.get('refresh_token');
+            const extractToken = (url: string, param: string) => {
+              const match = url.match(new RegExp(`[?&#]${param}=([^&]+)`));
+              return match ? decodeURIComponent(match[1]) : null;
+            };
+
+            const accessToken = extractToken(res.url, 'access_token');
+            const refreshToken = extractToken(res.url, 'refresh_token');
 
             if (accessToken && refreshToken) {
-              console.log('[Auth Step 9] Setting Supabase session tokens...');
-              await supabase.auth.setSession({
+              console.log('[Auth Step 8] Establishing Supabase session from tokens...');
+              const { error: sessionErr } = await supabase.auth.setSession({
                 access_token: accessToken,
                 refresh_token: refreshToken,
               });
+              if (sessionErr) {
+                console.error('[Auth Step 8 Error]', sessionErr.message);
+                return { success: false, error: sessionErr.message };
+              }
+              console.log('[Auth Step 9 SUCCESS] Session set successfully!');
               return { success: true, error: null };
             }
           }
         } catch (e: any) {
-          console.warn('[Auth Step 5 Fallback] Opening system browser window directly...', e.message);
+          console.warn('[Auth Fallback] Launching system browser...', e.message);
           await WebBrowser.openBrowserAsync(data.url);
         }
       }

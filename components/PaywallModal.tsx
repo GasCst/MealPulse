@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, MonetizationPlans } from '@/constants/theme';
 import { useSubscription, PlanType } from '@/context/SubscriptionContext';
+import { SpinWheelModal } from '@/components/SpinWheelModal';
+import { BeautifulAlertModal, BeautifulAlertProps } from '@/components/BeautifulAlertModal';
 
 interface PaywallModalProps {
   visible?: boolean;
@@ -25,9 +27,23 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('weekly');
   const [loading, setLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(599); // 09:59 countdown
+  const [showSpinWheelModal, setShowSpinWheelModal] = useState(false);
+
+  const [alertConfig, setAlertConfig] = useState<BeautifulAlertProps>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+    buttonText: 'Awesome!',
+    onClose: () => {},
+  });
 
   const isVisible = visible !== undefined ? visible : showPaywall;
   const handleClose = onClose || closePaywall;
+
+  const handleDismissPaywall = () => {
+    setShowSpinWheelModal(true);
+  };
 
   useEffect(() => {
     if (!isVisible) return;
@@ -46,14 +62,32 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
   const handleSubscribe = async () => {
     try {
       setLoading(true);
-      await subscribe(selectedPlan);
-      Alert.alert(
-        '🎉 Welcome to MealPulse PRO!',
-        'Your subscription is active. All AI camera meal scans, custom macro targets, and nutrition coach advice are unlocked!',
-        [{ text: 'Start Scanning Meals', onPress: handleClose }]
-      );
+      const success = await subscribe(selectedPlan);
+      if (success) {
+        setAlertConfig({
+          visible: true,
+          type: 'success',
+          title: '🎉 Welcome to MealPulse PRO!',
+          message: 'Your subscription is active. All AI camera meal scans, custom macro targets, and nutrition coach advice are unlocked!',
+          buttonText: 'Start Scanning Meals',
+          onClose: () => {
+            setAlertConfig((prev) => ({ ...prev, visible: false }));
+            handleClose();
+          },
+        });
+      } else {
+        // User cancelled or payment failed -> DO NOT SHOW WELCOME MODAL
+        console.log('[PaywallModal] Purchase cancelled or unverified. No Pro access granted.');
+      }
     } catch {
-      Alert.alert('Error', 'Unable to process transaction. Please try again.');
+      setAlertConfig({
+        visible: true,
+        type: 'error',
+        title: 'Payment Error',
+        message: 'Unable to verify payment transaction. Please try again.',
+        buttonText: 'OK',
+        onClose: () => setAlertConfig((prev) => ({ ...prev, visible: false })),
+      });
     } finally {
       setLoading(false);
     }
@@ -64,35 +98,52 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
       setLoading(true);
       const restored = await restorePurchases();
       if (restored) {
-        Alert.alert('Restored!', 'Your previous PRO subscription was successfully restored.');
-        handleClose();
+        setAlertConfig({
+          visible: true,
+          type: 'success',
+          title: 'Subscription Restored! ⚡',
+          message: 'Your previous MealPulse PRO subscription was successfully restored.',
+          buttonText: 'Awesome!',
+          onClose: () => {
+            setAlertConfig((prev) => ({ ...prev, visible: false }));
+            handleClose();
+          },
+        });
       }
     } catch {
-      Alert.alert('Error', 'No active subscription found to restore.');
+      setAlertConfig({
+        visible: true,
+        type: 'warning',
+        title: 'No Subscription Found',
+        message: 'No active PRO subscription was found for this account.',
+        buttonText: 'OK',
+        onClose: () => setAlertConfig((prev) => ({ ...prev, visible: false })),
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal
-      visible={isVisible}
-      animationType="slide"
-      transparent={false}
-      onRequestClose={handleClose}
-    >
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-          {/* Top Bar with Close */}
-          <View style={styles.headerRow}>
-            <View style={styles.proBadge}>
-              <Ionicons name="sparkles" size={14} color="#0F172A" />
-              <Text style={styles.proBadgeText}>LIMITED TIME OFFER</Text>
+    <>
+      <Modal
+        visible={isVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={handleDismissPaywall}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+            {/* Top Bar with Close */}
+            <View style={styles.headerRow}>
+              <View style={styles.proBadge}>
+                <Ionicons name="sparkles" size={14} color="#0F172A" />
+                <Text style={styles.proBadgeText}>LIMITED TIME OFFER</Text>
+              </View>
+              <TouchableOpacity onPress={handleDismissPaywall} style={styles.closeBtn}>
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color="#64748B" />
-            </TouchableOpacity>
-          </View>
 
           {/* Urgency Offer Banner */}
           <View style={styles.urgencyBanner}>
@@ -201,11 +252,11 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
           <View style={styles.featuresSection}>
             <Text style={styles.featuresTitle}>What is included in MealPulse PRO:</Text>
             {[
-              { icon: 'camera', text: 'Unlimited Camera AI Photo Meal Scans' },
-              { icon: 'pie-chart', text: 'Instant Protein, Carbs, Fat & Calorie Breakdown' },
-              { icon: 'fitness', text: 'Custom Weight Loss, Muscle Gain & Macro Targets' },
-              { icon: 'analytics', text: 'AI Nutrition Coach Recommendations & Health Score' },
-              { icon: 'water', text: 'Hydration & Daily Meal Log Synchronization' },
+              { icon: 'close-circle', text: '🚫 100% Ad-Free Clean App Experience' },
+              { icon: 'camera', text: '♾️ Unlimited Camera AI Photo Meal Scans' },
+              { icon: 'scale', text: '⚖️ Object Item Counting & Volumetric Weight Math' },
+              { icon: 'cloud-done', text: '☁️ Permanent Cloud History & Daily Sync' },
+              { icon: 'analytics', text: '🥗 AI Nutrition Coach Recommendations & Health Score' },
             ].map((item, index) => (
               <View key={index} style={styles.featureRow}>
                 <View style={styles.featureIconBox}>
@@ -269,7 +320,18 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
         </ScrollView>
       </SafeAreaView>
     </Modal>
-  );
+
+    <SpinWheelModal
+      visible={showSpinWheelModal}
+      onClose={() => {
+        setShowSpinWheelModal(false);
+        handleClose();
+      }}
+    />
+
+    <BeautifulAlertModal {...alertConfig} />
+  </>
+);
 };
 
 const styles = StyleSheet.create({

@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 12.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -14,6 +15,14 @@
       }
     },
     "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://bjnqebnaboxufnxkngjb.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqbnFlYm5hYm94dWZueGtuZ2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyMzA0NjMsImV4cCI6MjEwMDgwNjQ2M30.UmzVcEv8KnGS70iKvUa0CCTpMMdWdO2WWI6GQVb1oiQ",
+        "EXPO_PUBLIC_GEMINI_API_KEY": "AQ.Ab8RN6JYx8SCCc6JIN9uPWNj2ad2DuH8bpdK3Jg2eLJ9AYxAXg",
+        "EXPO_PUBLIC_REVENUECAT_GOOGLE_KEY": "goog_YxUeSuCRkVKXHdqmsItCZscxTMF",
+        "EXPO_PUBLIC_REVENUECAT_KEY": "goog_YxUeSuCRkVKXHdqmsItCZscxTMF"
+      },
       "android": {
         "buildType": "app-bundle"
       }

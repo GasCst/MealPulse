@@ -1,154 +1,197 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Colors } from '@/constants/theme';
+import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
 
 export default function StatisticsScreen() {
-  const { isPro, openPaywall } = useSubscription();
+  const { user, openPaywall } = useSubscription();
 
-  const chartData = [
-    { day: 'Mon', percent: 44, fillHeight: '44%' },
-    { day: 'Tue', percent: 34, fillHeight: '34%' },
-    { day: 'Wed', percent: 110, fillHeight: '100%', isHighlight: true },
-    { day: 'Thu', percent: 47, fillHeight: '47%' },
-    { day: 'Fri', percent: 32, fillHeight: '32%' },
-    { day: 'Sat', percent: 79, fillHeight: '79%' },
-    { day: 'Sun', percent: 24, fillHeight: '24%' },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [weeklyLogs, setWeeklyLogs] = useState<CloudMealLog[]>([]);
 
-  const colors = Colors.light;
+  const targetCalorieGoal = 1920;
+
+  useEffect(() => {
+    loadWeeklyAnalytics();
+  }, [user]);
+
+  const loadWeeklyAnalytics = async () => {
+    setLoading(true);
+    const data = await SupabaseService.fetchMealLogsHistory(user?.id);
+    setWeeklyLogs(data);
+    setLoading(false);
+  };
+
+  // Group meals by day of week
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayCalorieTotals: Record<string, number> = {
+    Mon: 0,
+    Tue: 0,
+    Wed: 0,
+    Thu: 0,
+    Fri: 0,
+    Sat: 0,
+    Sun: 0,
+  };
+
+  let totalCaloriesWeek = 0;
+  let totalProteinWeek = 0;
+  let totalCarbsWeek = 0;
+  let totalFatWeek = 0;
+
+  weeklyLogs.forEach((meal) => {
+    if (meal.logged_at) {
+      const d = new Date(meal.logged_at);
+      const dayName = daysOfWeek[d.getDay()];
+      if (dayCalorieTotals[dayName] !== undefined) {
+        dayCalorieTotals[dayName] += Number(meal.calories || 0);
+      }
+    }
+    totalCaloriesWeek += Number(meal.calories || 0);
+    totalProteinWeek += Number(meal.protein_g || 0);
+    totalCarbsWeek += Number(meal.carbs_g || 0);
+    totalFatWeek += Number(meal.fat_g || 0);
+  });
+
+  const chartOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const todayDayName = daysOfWeek[new Date().getDay()];
+
+  const chartData = chartOrder.map((day) => {
+    const cal = dayCalorieTotals[day];
+    const percent = Math.min(150, Math.round((cal / targetCalorieGoal) * 100));
+    const fillHeight = `${Math.min(100, Math.max(10, percent))}%`;
+    return {
+      day,
+      calories: cal,
+      percent,
+      fillHeight,
+      isHighlight: day === todayDayName,
+    };
+  });
+
+  const todayCalories = dayCalorieTotals[todayDayName] || 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Top Header Bar */}
         <View style={styles.topHeaderBar}>
-          <TouchableOpacity style={styles.circleBackBtn}>
-            <Ionicons name="chevron-back" size={20} color="#1E293B" />
-          </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>Statistic</Text>
-
-          <TouchableOpacity style={styles.circleBackBtn} onPress={() => openPaywall('analytics_options')}>
-            <Ionicons name="ellipsis-horizontal" size={20} color="#1E293B" />
+          <Text style={styles.headerTitle}>Real Macro Statistics 📊</Text>
+          <TouchableOpacity style={styles.circleBackBtn} onPress={loadWeeklyAnalytics}>
+            <Ionicons name="refresh" size={18} color="#1E293B" />
           </TouchableOpacity>
         </View>
 
         {/* Hero Calories Counter */}
         <View style={styles.caloriesHeroSection}>
-          <Text style={styles.caloriesLabel}>Calories</Text>
+          <Text style={styles.caloriesLabel}>Today's Logged Calories</Text>
           <View style={styles.caloriesNumberRow}>
-            <Text style={styles.caloriesBigVal}>1250</Text>
+            <Text style={styles.caloriesBigVal}>{todayCalories}</Text>
             <Text style={styles.kcalUnit}>Kcal</Text>
-            <Text style={styles.targetCalText}>Target: <Text style={styles.targetBold}>1920 Kcal</Text></Text>
+            <Text style={styles.targetCalText}>
+              Target: <Text style={styles.targetBold}>{targetCalorieGoal} Kcal</Text>
+            </Text>
           </View>
         </View>
 
         {/* Bar Chart Container */}
         <View style={styles.chartCard}>
-          <View style={styles.barsFlexRow}>
-            {chartData.map((item, idx) => (
-              <View key={idx} style={styles.chartColumn}>
-                <Text style={[styles.percentLabel, item.isHighlight && styles.percentLabelHighlight]}>
-                  {item.percent}%
-                </Text>
-
-                <View style={styles.barTrack}>
-                  {/* Striped Background Pattern */}
-                  <View style={styles.stripedPattern} />
-                  {/* Filled Bar */}
-                  <View
-                    style={[
-                      styles.barFill,
-                      { height: item.fillHeight as any },
-                      item.isHighlight && styles.barFillHighlight,
-                    ]}
-                  />
-                </View>
-
-                <Text style={styles.dayText}>{item.day}</Text>
-              </View>
-            ))}
+          <View style={styles.chartTitleRow}>
+            <Text style={styles.chartTitle}>Weekly Daily Calorie Compliance</Text>
+            <Text style={styles.chartSub}>Target: {targetCalorieGoal} kcal/day</Text>
           </View>
+
+          {loading ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#84CC16" />
+            </View>
+          ) : (
+            <View style={styles.barsFlexRow}>
+              {chartData.map((item, idx) => (
+                <View key={idx} style={styles.chartColumn}>
+                  <Text style={[styles.percentLabel, item.isHighlight && styles.percentLabelHighlight]}>
+                    {item.percent}%
+                  </Text>
+
+                  <View style={styles.barTrack}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        { height: item.fillHeight as any },
+                        item.isHighlight && styles.barFillHighlight,
+                      ]}
+                    />
+                  </View>
+
+                  <Text style={styles.dayText}>{item.day}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* 4-Grid Activity & Health Cards */}
         <View style={styles.gridSection}>
-          {/* Exercise Card */}
+          {/* Protein Card */}
           <View style={styles.gridCard}>
             <View style={styles.gridCardHeader}>
               <View style={[styles.iconCircle, { backgroundColor: '#DCFCE7' }]}>
-                <Ionicons name="barbell-outline" size={16} color="#16A34A" />
+                <Ionicons name="fitness" size={16} color="#16A34A" />
               </View>
-              <Text style={styles.gridCardTitle}>Exercise</Text>
+              <Text style={styles.gridCardTitle}>Protein Total</Text>
             </View>
-
-            {/* Mini Bar Sparkline */}
-            <View style={styles.miniBarRow}>
-              {[40, 60, 30, 80, 50, 90, 70].map((h, i) => (
-                <View key={i} style={[styles.miniBar, { height: `${h}%` }]} />
-              ))}
-            </View>
-
-            <Text style={styles.gridValNum}>2.0 <Text style={styles.gridValUnit}>hours</Text></Text>
+            <Text style={styles.gridValNum}>
+              {Math.round(totalProteinWeek)} <Text style={styles.gridValUnit}>grams</Text>
+            </Text>
           </View>
 
-          {/* BPM Card */}
-          <View style={styles.gridCard}>
-            <View style={styles.gridCardHeader}>
-              <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="heart" size={16} color="#EF4444" />
-              </View>
-              <Text style={styles.gridCardTitle}>BPM</Text>
-            </View>
-
-            {/* Mini Wave Sparkline */}
-            <View style={styles.waveRow}>
-              <Ionicons name="pulse" size={28} color="#EF4444" />
-            </View>
-
-            <Text style={styles.gridValNum}>86 <Text style={styles.gridValUnit}>bpm</Text></Text>
-          </View>
-
-          {/* Weight Card */}
+          {/* Carbs Card */}
           <View style={styles.gridCard}>
             <View style={styles.gridCardHeader}>
               <View style={[styles.iconCircle, { backgroundColor: '#FFEDD5' }]}>
-                <Ionicons name="scale-outline" size={16} color="#F97316" />
+                <Ionicons name="nutrition" size={16} color="#F97316" />
               </View>
-              <Text style={styles.gridCardTitle}>Weight</Text>
+              <Text style={styles.gridCardTitle}>Carbs Total</Text>
             </View>
-
-            <View style={styles.weightRow}>
-              <Text style={styles.gridValNum}>68.5 <Text style={styles.gridValUnit}>kg</Text></Text>
-            </View>
+            <Text style={styles.gridValNum}>
+              {Math.round(totalCarbsWeek)} <Text style={styles.gridValUnit}>grams</Text>
+            </Text>
           </View>
 
-          {/* Water Card */}
+          {/* Fat Card */}
+          <View style={styles.gridCard}>
+            <View style={styles.gridCardHeader}>
+              <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="pie-chart" size={16} color="#EF4444" />
+              </View>
+              <Text style={styles.gridCardTitle}>Fat Total</Text>
+            </View>
+            <Text style={styles.gridValNum}>
+              {Math.round(totalFatWeek)} <Text style={styles.gridValUnit}>grams</Text>
+            </Text>
+          </View>
+
+          {/* Total Meals Card */}
           <View style={styles.gridCard}>
             <View style={styles.gridCardHeader}>
               <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
-                <Ionicons name="water" size={16} color="#0EA5E9" />
+                <Ionicons name="camera" size={16} color="#0EA5E9" />
               </View>
-              <Text style={styles.gridCardTitle}>Water</Text>
+              <Text style={styles.gridCardTitle}>Scanned Meals</Text>
             </View>
-
-            <View style={styles.waterDotsRow}>
-              {[...Array(6)].map((_, i) => (
-                <View key={i} style={[styles.waterDot, i < 4 && styles.waterDotFilled]} />
-              ))}
-            </View>
-            <Text style={styles.gridValNum}>12 <Text style={styles.gridValUnit}>glass</Text></Text>
+            <Text style={styles.gridValNum}>
+              {weeklyLogs.length} <Text style={styles.gridValUnit}>meals</Text>
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -178,9 +221,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   circleBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -188,7 +231,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -232,17 +275,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
+  },
+  chartTitleRow: {
+    marginBottom: 16,
+  },
+  chartTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  chartSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
   barsFlexRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    height: 200,
+    height: 180,
   },
   chartColumn: {
     alignItems: 'center',
@@ -251,39 +302,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   percentLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#94A3B8',
     fontWeight: '600',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   percentLabelHighlight: {
     color: '#0F172A',
     fontWeight: '900',
   },
   barTrack: {
-    width: 20,
-    height: 140,
-    borderRadius: 10,
+    width: 18,
+    height: 120,
+    borderRadius: 9,
     backgroundColor: '#F1F5F9',
     justifyContent: 'flex-end',
     overflow: 'hidden',
-    position: 'relative',
-    marginBottom: 8,
-  },
-  stripedPattern: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.2,
+    marginBottom: 6,
   },
   barFill: {
     width: '100%',
     backgroundColor: '#BEF264',
-    borderRadius: 10,
+    borderRadius: 9,
   },
   barFillHighlight: {
     backgroundColor: '#84CC16',
   },
   dayText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
     fontWeight: '600',
   },
@@ -299,12 +345,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
-    gap: 12,
+    gap: 10,
   },
   gridCardHeader: {
     flexDirection: 'row',
@@ -312,58 +353,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   gridCardTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
   },
-  miniBarRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    height: 24,
-  },
-  miniBar: {
-    flex: 1,
-    backgroundColor: '#84CC16',
-    borderRadius: 2,
-  },
-  waveRow: {
-    height: 24,
-    justifyContent: 'center',
-  },
-  weightRow: {
-    height: 24,
-    justifyContent: 'center',
-  },
-  waterDotsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    height: 24,
-    alignItems: 'center',
-  },
-  waterDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E2E8F0',
-  },
-  waterDotFilled: {
-    backgroundColor: '#0EA5E9',
-  },
   gridValNum: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     color: '#0F172A',
   },
   gridValUnit: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     color: '#64748B',
   },

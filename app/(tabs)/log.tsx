@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
+import { AdBanner } from '@/components/AdBanner';
 
 export default function LogScreen() {
   const { user } = useSubscription();

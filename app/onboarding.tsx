@@ -17,63 +17,53 @@ const QUIZ_STEPS = [
   {
     id: 1,
     title: 'What is your primary health & body goal?',
-    subtitle: 'We will calculate your optimal daily calorie & macro targets.',
+    subtitle: 'Pulse Monster will calibrate your optimal daily calorie & macro targets.',
     options: [
-      { id: 'g_lose', label: '🔥 Weight Loss & Fat Burn', desc: 'Calorie deficit with high protein retention' },
-      { id: 'g_muscle', label: '💪 Build Lean Muscle', desc: 'Protein surplus and optimal macro balance' },
-      { id: 'g_maintain', label: '⚖️ Maintain Current Weight', desc: 'Balanced energy maintenance' },
-      { id: 'g_energy', label: '⚡ Boost Daily Energy', desc: 'Clean whole foods & nutrient optimization' },
+      { id: 'g_lose', label: '🔥 Weight Loss & Fat Burn', desc: 'Target: 1,600 kcal/day with high protein retention', kcal: 1600 },
+      { id: 'g_muscle', label: '💪 Build Lean Muscle Mass', desc: 'Target: 2,500 kcal/day with protein surplus', kcal: 2500 },
+      { id: 'g_maintain', label: '⚖️ Maintain Current Weight', desc: 'Target: 1,920 kcal/day balanced energy', kcal: 1920 },
+      { id: 'g_energy', label: '⚡ Boost Daily Vitality & Energy', desc: 'Target: 2,200 kcal/day clean nutrition', kcal: 2200 },
     ],
   },
   {
     id: 2,
-    title: 'What is your current activity level?',
-    subtitle: 'This helps adjust your Total Daily Energy Expenditure (TDEE).',
+    title: 'Select your preferred daily calorie goal:',
+    subtitle: 'This will customize your circular Home progress gauge.',
     options: [
-      { id: 'act_sedentary', label: '🪑 Desk / Sedentary', desc: 'Little to no daily exercise' },
-      { id: 'act_light', label: '🚶 Lightly Active', desc: '1–3 workouts or walks per week' },
-      { id: 'act_moderate', label: '🏋️ Moderately Active', desc: '3–5 gym sessions or sports' },
-      { id: 'act_intense', label: '🔥 Athlete / Intense', desc: '6+ heavy training sessions per week' },
+      { id: 'cal_1600', label: '⚡ 1,600 kcal / day', desc: 'Accelerated Fat Loss', kcal: 1600 },
+      { id: 'cal_1920', label: '🥑 1,920 kcal / day', desc: 'Standard Balanced Fit Target', kcal: 1920 },
+      { id: 'cal_2200', label: '🏃 2,200 kcal / day', desc: 'Active Energy Maintenance', kcal: 2200 },
+      { id: 'cal_2500', label: '🏋️ 2,500 kcal / day', desc: 'Muscle Growth & Performance', kcal: 2500 },
     ],
   },
   {
     id: 3,
-    title: 'Do you follow a specific dietary preference?',
-    subtitle: 'Our AI scanner tailors food recommendations to your diet.',
+    title: 'What is your current activity level?',
+    subtitle: 'Helps fine-tune your Total Daily Energy Expenditure (TDEE).',
     options: [
-      { id: 'd_flexible', label: '🥗 Flexible / Anything', desc: 'No strict dietary restrictions' },
-      { id: 'd_highprotein', label: '🥩 High Protein / Fitness', desc: 'Prioritizes lean meats & protein shakes' },
-      { id: 'd_keto', label: '🥑 Low Carb / Keto', desc: 'Higher healthy fats, minimal carbohydrates' },
-      { id: 'd_veg', label: '🌱 Vegetarian / Vegan', desc: 'Plant-based whole foods' },
-    ],
-  },
-  {
-    id: 4,
-    title: 'How do you currently track your food intake?',
-    subtitle: 'Photo AI scanning is proven to be 5x faster than manual typing.',
-    options: [
-      { id: 't_never', label: '📱 Never tracked before', desc: 'Want effortless camera photo scanning' },
-      { id: 't_manual', label: '📝 Typed manually in MyFitnessPal', desc: 'Tired of tedious food searching' },
-      { id: 't_inconsistent', label: '⏳ Tracked on and off', desc: 'Need a fast daily routine' },
+      { id: 'act_sedentary', label: '🪑 Sedentary / Office', desc: 'Little or no daily exercise' },
+      { id: 'act_light', label: '🚶 Lightly Active', desc: '1–3 light workouts per week' },
+      { id: 'act_moderate', label: '🏋️ Moderately Active', desc: '3–5 gym sessions per week' },
+      { id: 'act_intense', label: '🔥 Athlete / Intense', desc: '6+ heavy training sessions per week' },
     ],
   },
 ];
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { setCompletedOnboarding } = useSubscription();
+  const { setCompletedOnboarding, setTargetCalories, setPrimaryGoal } = useSubscription();
 
+  const [stepMode, setStepMode] = useState<'greeting' | 'quiz' | 'generating'>('greeting');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, any>>({});
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationText, setGenerationText] = useState('Calculating BMR & TDEE...');
   const [showPaywallModal, setShowPaywallModal] = useState(false);
 
   const currentStep = QUIZ_STEPS[currentStepIndex];
 
-  const handleSelectOption = (optionId: string) => {
-    setSelectedAnswers((prev) => ({ ...prev, [currentStepIndex]: optionId }));
+  const handleSelectOption = (option: any) => {
+    setSelectedAnswers((prev) => ({ ...prev, [currentStepIndex]: option }));
   };
 
   const handleNext = () => {
@@ -87,12 +77,15 @@ export default function OnboardingScreen() {
   };
 
   const runGenerationAnimation = async () => {
-    setIsGenerating(true);
-    setGenerationProgress(20);
+    setStepMode('generating');
+    setGenerationProgress(25);
     setGenerationText('Calculating Basal Metabolic Rate (BMR)...');
 
+    const chosenKcal = selectedAnswers[1]?.kcal || selectedAnswers[0]?.kcal || 1920;
+    const chosenGoal = selectedAnswers[0]?.label || 'Lose Weight';
+
     await new Promise((r) => setTimeout(r, 700));
-    setGenerationProgress(55);
+    setGenerationProgress(60);
     setGenerationText('Optimizing Protein, Carb & Fat split...');
 
     await new Promise((r) => setTimeout(r, 800));
@@ -101,10 +94,12 @@ export default function OnboardingScreen() {
 
     await new Promise((r) => setTimeout(r, 700));
     setGenerationProgress(100);
-    setGenerationText('Macro Plan Ready! Target: 1,920 kcal (145g Protein)');
+    setGenerationText(`Plan Ready! Calorie Target: ${chosenKcal} kcal/day`);
+
+    await setTargetCalories(chosenKcal);
+    await setPrimaryGoal(chosenGoal);
 
     await new Promise((r) => setTimeout(r, 600));
-    setIsGenerating(false);
     await setCompletedOnboarding(true);
     setShowPaywallModal(true);
   };
@@ -114,7 +109,41 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)');
   };
 
-  if (isGenerating) {
+  if (stepMode === 'greeting') {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.greetingContainer}>
+          <View style={styles.fireworksBox}>
+            <Text style={{ fontSize: 32 }}>🎉 🎆 🎉</Text>
+          </View>
+
+          {/* Pulse Monster Mascot */}
+          <View style={styles.mascotCircle}>
+            <Text style={{ fontSize: 48 }}>👾</Text>
+            <View style={styles.mascotBadge}>
+              <Text style={styles.mascotBadgeText}>PULSE MONSTER AI</Text>
+            </View>
+          </View>
+
+          <Text style={styles.greetingTitle}>Welcome to MealPulse AI!</Text>
+          <Text style={styles.greetingSub}>
+            Meet Pulse Monster, your friendly AI nutrition coach! Let's build your personalized macro & calorie plan in 60 seconds.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.startQuizBtn}
+            onPress={() => setStepMode('quiz')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.startQuizBtnText}>Start Personalization 🚀</Text>
+            <Ionicons name="arrow-forward" size={18} color="#0F172A" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (stepMode === 'generating') {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.generatingContainer}>
@@ -129,6 +158,8 @@ export default function OnboardingScreen() {
           </View>
           <Text style={styles.progressPercent}>{generationProgress}%</Text>
         </View>
+
+        <PaywallModal visible={showPaywallModal} onClose={handlePaywallClose} />
       </SafeAreaView>
     );
   }
@@ -153,17 +184,22 @@ export default function OnboardingScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <Text style={styles.questionTitle}>{currentStep.title}</Text>
-        <Text style={styles.questionSub}>{currentStep.subtitle}</Text>
+        <View style={styles.questionHeaderRow}>
+          <Text style={{ fontSize: 24 }}>👾</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.questionTitle}>{currentStep.title}</Text>
+            <Text style={styles.questionSub}>{currentStep.subtitle}</Text>
+          </View>
+        </View>
 
         <View style={styles.optionsList}>
           {currentStep.options.map((option) => {
-            const isSelected = selectedAnswers[currentStepIndex] === option.id;
+            const isSelected = selectedAnswers[currentStepIndex]?.id === option.id;
             return (
               <TouchableOpacity
                 key={option.id}
                 style={[styles.optionCard, isSelected && styles.selectedOptionCard]}
-                onPress={() => handleSelectOption(option.id)}
+                onPress={() => handleSelectOption(option)}
                 activeOpacity={0.8}
               >
                 <View style={styles.optionRadio}>
@@ -192,7 +228,7 @@ export default function OnboardingScreen() {
           activeOpacity={0.85}
         >
           <Text style={styles.nextBtnText}>
-            {currentStepIndex === QUIZ_STEPS.length - 1 ? 'Generate Macro Plan' : 'Continue'}
+            {currentStepIndex === QUIZ_STEPS.length - 1 ? 'Generate Calorie Plan' : 'Continue'}
           </Text>
           <Ionicons name="arrow-forward" size={18} color="#0F172A" />
         </TouchableOpacity>
@@ -207,6 +243,70 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  greetingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  fireworksBox: {
+    marginBottom: 12,
+  },
+  mascotCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F7FEE7',
+    borderWidth: 3,
+    borderColor: '#BEF264',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    position: 'relative',
+  },
+  mascotBadge: {
+    position: 'absolute',
+    bottom: -10,
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  mascotBadgeText: {
+    color: '#BEF264',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  greetingTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  greetingSub: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 30,
+  },
+  startQuizBtn: {
+    backgroundColor: '#BEF264',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  startQuizBtnText: {
+    color: '#0F172A',
+    fontSize: 16,
+    fontWeight: '800',
   },
   header: {
     paddingHorizontal: 20,
@@ -241,20 +341,25 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 30,
   },
+  questionHeaderRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
   questionTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   questionSub: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748B',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: 18,
   },
   optionsList: {
     gap: 12,
@@ -297,7 +402,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   optionLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#0F172A',
     marginBottom: 2,

@@ -14,17 +14,13 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+import { NotificationPromptModal } from '@/components/NotificationPromptModal';
+
 export default function RootLayout() {
   useEffect(() => {
     // Initialize RevenueCat In-App Purchases & Expo Push Notifications
     if (!isExpoGo) {
       RevenueCatService.configure();
-      try {
-        const { NotificationService } = require('@/services/notificationService');
-        NotificationService.requestPermissions();
-      } catch {
-        // Expo Go bypass
-      }
     }
   }, []);
 
@@ -41,6 +37,7 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Info' }} />
         </Stack>
+        <NotificationPromptModal />
         <StatusBar style="dark" />
       </ThemeProvider>
     </SubscriptionProvider>
