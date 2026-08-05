@@ -5,7 +5,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 // RevenueCat Public Keys (set in .env or EXPO_PUBLIC_)
 const API_KEYS = {
   apple: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_KEY || 'appl_demo_key_mealpulse',
-  google: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_KEY || 'goog_demo_key_mealpulse',
+  google: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_KEY || 'goog_YxUeSuCRkVKXHdqmsItCZscxTMF',
 };
 
 // Check if running inside Expo Go client
