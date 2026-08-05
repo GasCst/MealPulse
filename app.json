@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.mealpulse.app",
-      "versionCode": 26,
+      "versionCode": 28,
       "adaptiveIcon": {
         "backgroundColor": "#BEF264",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
