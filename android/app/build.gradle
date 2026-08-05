@@ -92,17 +92,17 @@ android {
         applicationId 'com.mealpulse.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 28
+        versionCode 29
         versionName "2.1.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
     signingConfigs {
         debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            storeFile file('expo-release.jks')
+            storePassword 'a9b7cbc9b68b1e41d84af395c675027e'
+            keyAlias '233075be2333639a18871a27bdfa94ee'
+            keyPassword 'e516726bd6bd6f34f237a09cbe931555'
         }
         release {
             storeFile file('expo-release.jks')
