@@ -12,6 +12,7 @@ import { useSubscription } from '@/context/SubscriptionContext';
 import {
   RewardedAd,
   RewardedAdEventType,
+  AdEventType,
   TestIds,
 } from 'react-native-google-mobile-ads';
 
@@ -39,15 +40,10 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
 
   const rewardedRef = useRef<RewardedAd | null>(null);
 
-  useEffect(() => {
-    if (!visible) return;
-
-    setErrorMsg(null);
-    setLoaded(false);
-
+  const loadAd = (targetUnitId: string) => {
     try {
-      console.log(`[Google AdMob] Preloading Rewarded Ad (Unit ID: ${adUnitId})...`);
-      const rewarded = RewardedAd.createForAdRequest(adUnitId, {
+      console.log(`[Google AdMob] Preloading Rewarded Ad (Unit ID: ${targetUnitId})...`);
+      const rewarded = RewardedAd.createForAdRequest(targetUnitId, {
         requestNonPersonalizedAdsOnly: true,
       });
 
@@ -70,15 +66,50 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
         }
       );
 
+      const unsubscribeClosed = rewarded.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          console.log('[Google AdMob] Ad Closed');
+          setIsWatchingAd(false);
+        }
+      );
+
+      const unsubscribeError = rewarded.addAdEventListener(
+        AdEventType.ERROR,
+        (error) => {
+          console.warn('[Google AdMob Load Error]', error);
+          setErrorMsg(error?.message || 'Ad load failed');
+
+          // If production ad fails to load (e.g. Code 3 NO_FILL unverified store link), fallback to TestIds
+          if (targetUnitId !== TestIds.REWARDED) {
+            console.log('[Google AdMob] Falling back to Google Test Ad Unit...');
+            loadAd(TestIds.REWARDED);
+          }
+        }
+      );
+
       rewarded.load();
 
       return () => {
         unsubscribeLoaded();
         unsubscribeEarned();
+        unsubscribeClosed();
+        unsubscribeError();
       };
     } catch (e: any) {
       console.warn('[Google AdMob Init Error]', e.message || e);
     }
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+
+    setErrorMsg(null);
+    setLoaded(false);
+    setIsWatchingAd(false);
+
+    const cleanup = loadAd(adUnitId);
+    return cleanup;
   }, [visible]);
 
   const handleWatchAd = async () => {
@@ -88,12 +119,10 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
         await rewardedRef.current.show();
       } catch (e: any) {
         console.warn('[Google AdMob Show Error]', e.message || e);
-        // Fallback simulation if native ad fails to show
         fallbackTimer();
       }
     } else {
-      console.log('[Google AdMob] Ad not loaded yet, attempting fallback load or test ad...');
-      // Fallback timer if ad unit is still undergoing Google verification (Code 3)
+      console.log('[Google AdMob] Ad not loaded yet, forcing reload...');
       fallbackTimer();
     }
   };
