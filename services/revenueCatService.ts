@@ -1,6 +1,9 @@
+// TODO: Consolidate RevenueCatService and PurchaseService into one authoritative purchase service.
+
 import { Platform } from 'react-native';
 import Purchases, { PurchasesOffering, LOG_LEVEL } from 'react-native-purchases';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { PRO_ENTITLEMENT_KEYS } from '@/services/purchaseService';
 
 // RevenueCat Public Keys (set in .env or EXPO_PUBLIC_)
 const API_KEYS = {
@@ -53,10 +56,10 @@ export class RevenueCatService {
    * Purchases a package (Weekly / Monthly / Yearly)
    */
   static async purchasePlan(planKey: 'weekly' | 'monthly' | 'yearly'): Promise<boolean> {
-    if (!this.isInitialized || Platform.OS === 'web' || isExpoGo || typeof window === 'undefined') return true;
+    if (!this.isInitialized || Platform.OS === 'web' || isExpoGo || typeof window === 'undefined') return false;
     try {
       const offerings = await this.getOfferings();
-      if (!offerings) return true;
+      if (!offerings) return false;
 
       const pkg = offerings.availablePackages.find(
         (p) => p.identifier.toLowerCase().includes(planKey) || p.packageType.toLowerCase().includes(planKey)
@@ -64,27 +67,29 @@ export class RevenueCatService {
 
       if (pkg) {
         const { customerInfo } = await Purchases.purchasePackage(pkg);
-        return customerInfo.entitlements.active['pro_access'] !== undefined;
+        const active = customerInfo.entitlements.active;
+        return PRO_ENTITLEMENT_KEYS.some((key) => active[key] !== undefined);
       }
     } catch (e: any) {
       if (!e.userCancelled) {
         console.warn('Purchase Notice:', e);
       }
     }
-    return true;
+    return false;
   }
 
   /**
    * Restores existing App Store / Google Play purchases
    */
   static async restorePurchases(): Promise<boolean> {
-    if (!this.isInitialized || Platform.OS === 'web' || isExpoGo || typeof window === 'undefined') return true;
+    if (!this.isInitialized || Platform.OS === 'web' || isExpoGo || typeof window === 'undefined') return false;
     try {
       const customerInfo = await Purchases.restorePurchases();
-      return customerInfo.entitlements.active['pro_access'] !== undefined;
+      const active = customerInfo.entitlements.active;
+      return PRO_ENTITLEMENT_KEYS.some((key) => active[key] !== undefined);
     } catch (e) {
       console.warn('Restore Purchases Notice:', e);
-      return true;
+      return false;
     }
   }
 
@@ -95,7 +100,8 @@ export class RevenueCatService {
     if (!this.isInitialized || Platform.OS === 'web' || isExpoGo || typeof window === 'undefined') return false;
     try {
       const customerInfo = await Purchases.getCustomerInfo();
-      return customerInfo.entitlements.active['pro_access'] !== undefined;
+      const active = customerInfo.entitlements.active;
+      return PRO_ENTITLEMENT_KEYS.some((key) => active[key] !== undefined);
     } catch {
       return false;
     }

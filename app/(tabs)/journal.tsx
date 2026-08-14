@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { Colors } from '@/constants/theme';
 import { PaywallModal } from '@/components/PaywallModal';
+import { SupabaseService } from '@/services/supabaseService';
 
 interface JournalEntry {
   id: string;
@@ -24,7 +25,7 @@ interface JournalEntry {
 }
 
 export default function JournalScreen() {
-  const { isPro, openPaywall } = useSubscription();
+  const { isPro, openPaywall, user } = useSubscription();
 
   const [noteText, setNoteText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,21 +39,62 @@ export default function JournalScreen() {
     },
   ]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    SupabaseService.fetchJournalEntries(user.id).then((cloudEntries) => {
+      if (cloudEntries && cloudEntries.length > 0) {
+        const mapped: JournalEntry[] = cloudEntries.map((e: any) => ({
+          id: e.id,
+          date: e.created_at ? new Date(e.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Today',
+          note: e.note,
+          sentiment: e.sentiment || 'High Focus',
+          aiAdvice: e.ai_advice || 'AI Insight: Consistent execution identified.',
+        }));
+        setEntries(mapped);
+      }
+    });
+  }, [user]);
+
   const handleSaveEntry = async () => {
     if (!noteText.trim()) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
+
+    const note = noteText.trim();
+    const sentiment = 'High Focus';
+    const aiAdvice = 'AI Insight: Consistent execution identified. Recommend doubling down on daily nutrition tracking.';
+
+    if (user?.id) {
+      const created = await SupabaseService.saveJournalEntry(user.id, {
+        note,
+        sentiment,
+        aiAdvice,
+      });
+
+      if (created) {
+        const newEntry: JournalEntry = {
+          id: created.id,
+          date: 'Just now',
+          note: created.note,
+          sentiment: created.sentiment || sentiment,
+          aiAdvice: created.ai_advice || aiAdvice,
+        };
+        setEntries((prev) => [newEntry, ...prev]);
+        setNoteText('');
+        setLoading(false);
+        return;
+      }
+    }
 
     const newEntry: JournalEntry = {
       id: Date.now().toString(),
       date: 'Just now',
-      note: noteText,
-      sentiment: 'High Focus',
-      aiAdvice: 'AI Insight: Consistent execution identified. Recommend doubling down on short-form content to drive paywall views.',
+      note,
+      sentiment,
+      aiAdvice,
     };
 
-    setEntries([newEntry, ...entries]);
+    setEntries((prev) => [newEntry, ...prev]);
     setNoteText('');
     setLoading(false);
   };

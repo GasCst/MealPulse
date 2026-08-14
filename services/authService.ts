@@ -124,6 +124,7 @@ export class AuthService {
         } catch (e: any) {
           console.warn('[Auth Fallback] Launching system browser...', e.message);
           await WebBrowser.openBrowserAsync(data.url);
+          return { success: false, pendingDeepLink: true, error: null };
         }
       }
 

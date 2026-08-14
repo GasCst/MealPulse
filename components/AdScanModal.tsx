@@ -6,9 +6,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   RewardedAd,
   RewardedAdEventType,
@@ -34,11 +36,37 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
   onClose,
 }) => {
   const { openPaywall } = useSubscription();
+  const { t } = useLanguage();
+
   const [loaded, setLoaded] = useState(false);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [hasShownAdThisSession, setHasShownAdThisSession] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [adFailed, setAdFailed] = useState(false);
 
   const rewardedRef = useRef<RewardedAd | null>(null);
+  const fallbackActiveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const presentationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // FIX: mirror state in refs so timers and closures read live values
+  const loadedRef = useRef(false);
+  const rewardEarnedRef = useRef(false);
+  const adFailedRef = useRef(false);
+  const hasCompletedRef = useRef(false);
+  const hasShownAdRef = useRef(false);
+  const isWatchingAdRef = useRef(false);
+
+  const safeOnAdCompleted = () => {
+    if (hasCompletedRef.current) return;
+    hasCompletedRef.current = true;
+    if (fallbackActiveRef.current) {
+      clearInterval(fallbackActiveRef.current);
+      fallbackActiveRef.current = null;
+    }
+    setIsWatchingAd(false);
+    isWatchingAdRef.current = false;
+    onAdCompleted();
+  };
 
   const loadAd = (targetUnitId: string) => {
     try {
@@ -46,14 +74,25 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
       const rewarded = RewardedAd.createForAdRequest(targetUnitId, {
         requestNonPersonalizedAdsOnly: true,
       });
-
       rewardedRef.current = rewarded;
 
       const unsubscribeLoaded = rewarded.addAdEventListener(
         RewardedAdEventType.LOADED,
         () => {
           console.log('[Google AdMob] Rewarded Ad Loaded & Ready to play!');
+          loadedRef.current = true;
           setLoaded(true);
+        }
+      );
+
+      const unsubscribeOpened = rewarded.addAdEventListener(
+        AdEventType.OPENED,
+        () => {
+          console.log('[Google AdMob] Ad Opened Successfully');
+          if (presentationTimeoutRef.current) {
+            clearTimeout(presentationTimeoutRef.current);
+            presentationTimeoutRef.current = null;
+          }
         }
       );
 
@@ -61,8 +100,8 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
         RewardedAdEventType.EARNED_REWARD,
         (reward) => {
           console.log('[Google AdMob] Reward Earned by User!', reward);
-          setIsWatchingAd(false);
-          onAdCompleted();
+          rewardEarnedRef.current = true;
+          safeOnAdCompleted();
         }
       );
 
@@ -70,21 +109,19 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
         AdEventType.CLOSED,
         () => {
           console.log('[Google AdMob] Ad Closed');
-          setIsWatchingAd(false);
+          if (!rewardEarnedRef.current) {
+            safeOnAdCompleted();
+          }
         }
       );
 
       const unsubscribeError = rewarded.addAdEventListener(
         AdEventType.ERROR,
         (error) => {
-          console.warn('[Google AdMob Load Error]', error);
+          console.error('[AdMob Bridge Error] Silent failure caught:', error);
+          adFailedRef.current = true;
           setErrorMsg(error?.message || 'Ad load failed');
-
-          // If production ad fails to load (e.g. Code 3 NO_FILL unverified store link), fallback to TestIds
-          if (targetUnitId !== TestIds.REWARDED) {
-            console.log('[Google AdMob] Falling back to Google Test Ad Unit...');
-            loadAd(TestIds.REWARDED);
-          }
+          setAdFailed(true);
         }
       );
 
@@ -92,12 +129,15 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
 
       return () => {
         unsubscribeLoaded();
+        unsubscribeOpened();
         unsubscribeEarned();
         unsubscribeClosed();
         unsubscribeError();
       };
     } catch (e: any) {
       console.warn('[Google AdMob Init Error]', e.message || e);
+      adFailedRef.current = true;
+      setAdFailed(true);
     }
   };
 
@@ -107,37 +147,106 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
     setErrorMsg(null);
     setLoaded(false);
     setIsWatchingAd(false);
+    setHasShownAdThisSession(false);
+    setAdFailed(false);
+    loadedRef.current = false;
+    adFailedRef.current = false;
+    rewardEarnedRef.current = false;
+    hasCompletedRef.current = false;
+    hasShownAdRef.current = false;
+    isWatchingAdRef.current = false;
 
     const cleanup = loadAd(adUnitId);
-    return cleanup;
+
+    const autoPlayTimer = setTimeout(() => {
+      handleWatchAd();
+    }, 1200);
+
+    return () => {
+      clearTimeout(autoPlayTimer);
+      if (presentationTimeoutRef.current) clearTimeout(presentationTimeoutRef.current);
+      if (fallbackActiveRef.current) {
+        clearInterval(fallbackActiveRef.current);
+        fallbackActiveRef.current = null;
+      }
+      if (cleanup) cleanup();
+      rewardedRef.current = null;
+    };
   }, [visible]);
 
   const handleWatchAd = async () => {
-    if (rewardedRef.current && loaded) {
-      try {
-        setIsWatchingAd(true);
-        await rewardedRef.current.show();
-      } catch (e: any) {
-        console.warn('[Google AdMob Show Error]', e.message || e);
-        fallbackTimer();
-      }
+    if (hasShownAdRef.current || isWatchingAdRef.current) {
+      return;
+    }
+    hasShownAdRef.current = true;
+    isWatchingAdRef.current = true;
+    setHasShownAdThisSession(true);
+
+    if (adFailedRef.current) {
+      console.log('[Google AdMob] Ad already failed. Skipping instantly.');
+      skipInstantly();
+      return;
+    }
+
+    setIsWatchingAd(true);
+    const currentAd = rewardedRef.current;
+
+    if (currentAd && loadedRef.current) {
+      triggerAdShow(currentAd);
     } else {
-      console.log('[Google AdMob] Ad not loaded yet, forcing reload...');
-      fallbackTimer();
+      console.log('[Google AdMob] Ad not loaded yet. Waiting gracefully (max 8s)...');
+      let sec = 8;
+      const interval = setInterval(() => {
+        sec -= 1;
+
+        if (rewardedRef.current && loadedRef.current) {
+          clearInterval(interval);
+          fallbackActiveRef.current = null;
+          console.log('[Google AdMob] Ad finished loading while waiting! Showing now.');
+          triggerAdShow(rewardedRef.current);
+          return;
+        }
+        if (sec <= 0 || adFailedRef.current) {
+          console.log('[Google AdMob] Max wait time reached or ad failed. Skipping.');
+          clearInterval(interval);
+          fallbackActiveRef.current = null;
+          skipInstantly();
+        }
+      }, 1000);
+
+      fallbackActiveRef.current = interval;
     }
   };
 
-  const fallbackTimer = () => {
-    setIsWatchingAd(true);
-    let sec = 5;
-    const interval = setInterval(() => {
-      sec -= 1;
-      if (sec <= 0) {
-        clearInterval(interval);
-        setIsWatchingAd(false);
-        onAdCompleted();
-      }
-    }, 1000);
+  const triggerAdShow = async (currentAd: RewardedAd) => {
+    // STRICT CHECK: Ensure the Activity is in the foreground and interactable
+    if (AppState.currentState !== 'active') {
+      console.warn(`[AdMob] Cannot show ad. AppState is: ${AppState.currentState}. Activity is not valid.`);
+      skipInstantly();
+      return;
+    }
+    try {
+      console.log('[AdMob] Attempting to mount full screen content...');
+
+      // Timeout if AdMob fails to actually present the ad over the screen within 3.5s
+      presentationTimeoutRef.current = setTimeout(() => {
+        console.log('[Google AdMob] Presentation timeout reached. Ad failed to open.');
+        skipInstantly();
+      }, 3500);
+
+      await currentAd.show();
+      console.log('[AdMob] Promise resolved (Ad presented successfully)');
+    } catch (error: any) {
+      // This specifically catches the RN translation of onAdFailedToShowFullScreenContent
+      console.error('[AdMob Show Error] Failed to show full screen content:', error.message);
+      console.error('[AdMob Show Error Details]:', error);
+      if (presentationTimeoutRef.current) clearTimeout(presentationTimeoutRef.current);
+      skipInstantly();
+    }
+  };
+
+  const skipInstantly = () => {
+    safeOnAdCompleted();
   };
 
   const handleUpgradePro = () => {
@@ -189,23 +298,32 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
                 <Ionicons name="shield-checkmark" size={16} color="#84CC16" />
                 <Text style={styles.offerText}>Supports Free Tier Server Costs</Text>
               </View>
+              {/* errorMsg is now surfaced instead of being silently discarded */}
+              {errorMsg ? (
+                <View style={styles.offerRow}>
+                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                  <Text style={[styles.offerText, { color: '#DC2626' }]}>
+                    {errorMsg}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           )}
 
           {/* Actions */}
           <View style={styles.actionsBox}>
             <TouchableOpacity
-              style={[styles.watchAdBtn, isWatchingAd && styles.disabledBtn]}
+              style={[styles.watchAdBtn, (isWatchingAd || hasShownAdThisSession) && styles.disabledBtn]}
               onPress={handleWatchAd}
-              disabled={isWatchingAd}
+              disabled={isWatchingAd || hasShownAdThisSession}
               activeOpacity={0.85}
             >
               <Ionicons name="play" size={18} color="#0F172A" />
               <Text style={styles.watchAdBtnText}>
                 {isWatchingAd
                   ? 'Playing Google Video Ad...'
-                  : loaded
-                  ? 'Watch Short Video Ad & Scan 🎬'
+                  : hasShownAdThisSession
+                  ? 'Ad Completed! Processing...'
                   : 'Watch Short Video Ad & Scan 🎬'}
               </Text>
             </TouchableOpacity>

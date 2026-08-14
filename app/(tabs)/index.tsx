@@ -10,19 +10,110 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedScrollHandler,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useLanguage } from '@/context/LanguageContext';
+
+interface MacroRingItemProps {
+  label: string;
+  emoji: string;
+  current: number;
+  target: number;
+  color: string;
+  trackColor?: string;
+}
+
+const MacroRingItem: React.FC<MacroRingItemProps> = ({
+  label,
+  emoji,
+  current,
+  target,
+  color,
+  trackColor = '#F1F5F9',
+}) => {
+  const size = 90;
+  const strokeWidth = 8;
+  const center = size / 2;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  const pct = Math.min(100, Math.round((current / (target || 1)) * 100));
+  const strokeDashoffset = circumference - (circumference * pct) / 100;
+
+  return (
+    <View style={styles.macroRingCardItem}>
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Svg width={size} height={size}>
+          {/* Background Track Ring */}
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke={trackColor}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          {/* Progress Circle */}
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            fill="transparent"
+            rotation="-90"
+            origin={`${center}, ${center}`}
+          />
+        </Svg>
+
+        {/* Center Content (Emoji + Current Value) */}
+        <View style={styles.macroRingCenter}>
+          <Text style={{ fontSize: 17, marginBottom: 1 }}>{emoji}</Text>
+          <Text style={styles.macroRingVal}>{current}g</Text>
+        </View>
+      </View>
+
+      {/* Under Ring Text & Target */}
+      <Text style={styles.macroRingLabel}>{label}</Text>
+      <Text style={styles.macroRingSub}>
+        {current} / {target}g
+      </Text>
+      
+      <View style={[styles.macroRingBadge, { backgroundColor: `${color}18` }]}>
+        <Text style={[styles.macroRingBadgeText, { color }]}>{pct}%</Text>
+      </View>
+    </View>
+  );
+};
+import { useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/theme';
 import { PaywallModal } from '@/components/PaywallModal';
-import { SupabaseService } from '@/services/supabaseService';
+import { SupabaseService, ExpoGoSafeAsyncStorage } from '@/services/supabaseService';
 import { ProfileModal } from '@/components/ProfileModal';
 import { NotificationModal } from '@/components/NotificationModal';
 import { analyzeMealPlateImage, MealVisionResult } from '@/services/aiVisionService';
 import { AdScanModal } from '@/components/AdScanModal';
+import { ManualMealModal } from '@/components/ManualMealModal';
+import { BarcodeScannerModal } from '@/components/BarcodeScannerModal';
+import { WaterTrackerCard } from '@/components/WaterTrackerCard';
+import { FastingTimerCard } from '@/components/FastingTimerCard';
+import { AdBanner } from '@/components/AdBanner';
 
 interface LoggedMeal {
   id: string;
@@ -38,7 +129,9 @@ interface LoggedMeal {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, isPro, freeUsageCount, maxFreeUsage, recordUsage, openPaywall, targetCalories } = useSubscription();
+  const { user, isPro, freeUsageCount, maxFreeUsage, recordUsage, openPaywall, targetCalories, biometrics, beginWrite, endWrite } = useSubscription();
+  const { t } = useLanguage();
+  const { isDarkMode, colors } = useTheme();
 
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest User';
   const avatarUrl = user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
@@ -64,6 +157,18 @@ export default function HomeScreen() {
     const key = getDateKey(targetDate);
 
     if (!user?.id) {
+      // Guest User Mode: Load guest meals from local storage or reset
+      const guestKey = `@mealpulse_guest_meals_v1_${key}`;
+      const savedGuest = await ExpoGoSafeAsyncStorage.getItem(guestKey);
+      if (savedGuest) {
+        try {
+          setMealsByDate((prev) => ({ ...prev, [key]: JSON.parse(savedGuest) }));
+        } catch {
+          setMealsByDate((prev) => ({ ...prev, [key]: [] }));
+        }
+      } else {
+        setMealsByDate((prev) => ({ ...prev, [key]: [] }));
+      }
       return;
     }
 
@@ -87,6 +192,11 @@ export default function HomeScreen() {
         ...prev,
         [key]: mapped,
       }));
+    } else {
+      setMealsByDate((prev) => ({
+        ...prev,
+        [key]: [],
+      }));
     }
   };
 
@@ -105,10 +215,57 @@ export default function HomeScreen() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false);
   const [showAdScanModal, setShowAdScanModal] = useState(false);
-  const [pendingBase64, setPendingBase64] = useState('');
+  const [showManualMealModal, setShowManualMealModal] = useState(false);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [pendingBase64, setPendingBase64] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<MealVisionResult | null>(null);
+
+  const handleAddManualOrBarcodeMeal = async (meal: { name: string; calories: number; protein: number; carbs: number; fat: number }) => {
+    beginWrite();
+    try {
+      const mealId = `meal_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const newMeal: LoggedMeal = {
+        id: mealId,
+        category: 'Logged Food',
+        name: meal.name,
+        calories: meal.calories,
+        protein: meal.protein,
+        carbs: meal.carbs,
+        fat: meal.fat,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      const currentKey = getDateKey(selectedDate);
+      const updatedList = [newMeal, ...(mealsByDate[currentKey] || [])];
+      setMealsByDate((prev) => ({
+        ...prev,
+        [currentKey]: updatedList,
+      }));
+
+      if (!user?.id) {
+        const guestKey = `@mealpulse_guest_meals_v1_${currentKey}`;
+        await ExpoGoSafeAsyncStorage.setItem(guestKey, JSON.stringify(updatedList));
+      } else {
+        await SupabaseService.saveMealLog({
+          id: mealId,
+          user_id: user.id,
+          food_name: meal.name,
+          estimated_weight_g: 100,
+          calories: meal.calories,
+          protein_g: meal.protein,
+          carbs_g: meal.carbs,
+          fat_g: meal.fat,
+          meal_type: 'Logged Food',
+          logging_method: 'manual',
+        });
+        await loadMealsForDate(selectedDate);
+      }
+    } finally {
+      endWrite();
+    }
+  };
 
   // Meal Detail / Edit / Delete Modal State
   const [selectedMealForDetail, setSelectedMealForDetail] = useState<LoggedMeal | null>(null);
@@ -199,13 +356,50 @@ export default function HomeScreen() {
   // Custom API Key modal state
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [customApiKey, setCustomApiKey] = useState('');
+  const [adPurpose, setAdPurpose] = useState<'ai_scan' | 'barcode_scan' | null>('ai_scan');
 
-  // Calculate Totals
+  // Calculate Totals & Target Macros
   const totalCalories = meals.reduce((acc, m) => acc + m.calories, 0);
+  const totalProtein = meals.reduce((acc, m) => acc + m.protein, 0);
+  const totalCarbs = meals.reduce((acc, m) => acc + m.carbs, 0);
+  const totalFat = meals.reduce((acc, m) => acc + m.fat, 0);
+
+  const targetProtein = biometrics?.targetProtein || 135;
+  const targetCarbs = biometrics?.targetCarbs || 210;
+  const targetFat = biometrics?.targetFat || 65;
+
+  const proteinPct = Math.min(100, Math.round((totalProtein / targetProtein) * 100));
+  const carbsPct = Math.min(100, Math.round((totalCarbs / targetCarbs) * 100));
+  const fatPct = Math.min(100, Math.round((totalFat / targetFat) * 100));
+
+  // Dynamic Scroll 3D Vertical Rotation Animation
+  const scrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const animatedMacroStyle = useAnimatedStyle(() => {
+    const rotateX = interpolate(scrollY.value, [0, 80], [25, 0], Extrapolation.CLAMP);
+    const scale = interpolate(scrollY.value, [0, 80], [0.92, 1], Extrapolation.CLAMP);
+    const opacity = interpolate(scrollY.value, [0, 80], [0.5, 1], Extrapolation.CLAMP);
+
+    return {
+      opacity,
+      transform: [
+        { perspective: 800 },
+        { rotateX: `${rotateX}deg` },
+        { scale },
+      ],
+    };
+  });
 
   const triggerScanFlow = (base64: string, imageUri: string) => {
     setCapturedImageUri(imageUri);
     setPendingBase64(base64);
+    setAdPurpose('ai_scan');
 
     if (!isPro) {
       // Free Tier: MUST watch sponsor ad BEFORE ScannerModal & AI vision analysis
@@ -219,11 +413,42 @@ export default function HomeScreen() {
 
   const handleAdCompleted = () => {
     setShowAdScanModal(false);
-    if (pendingBase64) {
+    const purpose = adPurpose;
+    const b64 = pendingBase64;
+
+    // Reset state immediately to prevent double-opening
+    setAdPurpose(null);
+    setPendingBase64(null);
+
+    if (purpose === 'barcode_scan') {
+      setShowBarcodeModal(true);
+    } else if (b64) {
       // Launch Scanner Modal ONLY AFTER sponsor ad completes!
       setShowScannerModal(true);
-      runAiAnalysis(pendingBase64);
+      runAiAnalysis(b64);
     }
+  };
+
+  const handleAiPhotoScanChoice = () => {
+    Alert.alert(
+      'AI Photo Scan 📸',
+      'Choose how you want to add your meal photo:',
+      [
+        {
+          text: '📷 Take Photo',
+          onPress: handleLaunchCamera,
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: handleLaunchGallery,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleLaunchCamera = async () => {
@@ -292,52 +517,72 @@ export default function HomeScreen() {
 
   const handleSaveScannedMeal = async () => {
     if (!scanResult) return;
-
-    const newMeal: LoggedMeal = {
-      id: Date.now().toString(),
-      category: 'Dinner',
-      name: scanResult.food_name,
-      calories: scanResult.calories,
-      protein: scanResult.protein_g,
-      carbs: scanResult.carbs_g,
-      fat: scanResult.fat_g,
-      imageUri: capturedImageUri || undefined,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    // Save to local UI state for active date key
-    const currentKey = getDateKey(selectedDate);
-    setMealsByDate((prev) => ({
-      ...prev,
-      [currentKey]: [newMeal, ...(prev[currentKey] || [])],
-    }));
-
-    // Save to Supabase Cloud DB per user account
-    if (user?.id) {
-      await SupabaseService.saveMealLog({
-        user_id: user.id,
-        food_name: scanResult.food_name,
-        estimated_weight_g: scanResult.estimated_weight_g,
+    beginWrite();
+    try {
+      const mealId = `meal_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const newMeal: LoggedMeal = {
+        id: mealId,
+        category: 'Dinner',
+        name: scanResult.food_name,
         calories: scanResult.calories,
-        protein_g: scanResult.protein_g,
-        carbs_g: scanResult.carbs_g,
-        fat_g: scanResult.fat_g,
-        meal_type: 'Dinner',
-        image_url: capturedImageUri || undefined,
-      });
-      await loadMealsForDate(selectedDate);
+        protein: scanResult.protein_g,
+        carbs: scanResult.carbs_g,
+        fat: scanResult.fat_g,
+        imageUri: capturedImageUri || undefined,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      // Save to local UI state for active date key
+      const currentKey = getDateKey(selectedDate);
+      const updatedList = [newMeal, ...(mealsByDate[currentKey] || [])];
+      setMealsByDate((prev) => ({
+        ...prev,
+        [currentKey]: updatedList,
+      }));
+
+      if (!user?.id) {
+        const guestKey = `@mealpulse_guest_meals_v1_${currentKey}`;
+        await ExpoGoSafeAsyncStorage.setItem(guestKey, JSON.stringify(updatedList));
+        Alert.alert('Meal Saved! 🥗', `${scanResult.food_name} (${scanResult.calories} kcal) saved locally.`);
+      } else {
+        await SupabaseService.saveMealLog({
+          id: mealId,
+          user_id: user.id,
+          food_name: scanResult.food_name,
+          estimated_weight_g: scanResult.estimated_weight_g,
+          calories: scanResult.calories,
+          protein_g: scanResult.protein_g,
+          carbs_g: scanResult.carbs_g,
+          fat_g: scanResult.fat_g,
+          meal_type: 'Dinner',
+          image_url: capturedImageUri || undefined,
+          logging_method: 'ai_photo',
+          confidence_score: scanResult.confidence,
+          item_count: scanResult.item_count || 1,
+          unit_weight_g: scanResult.unit_weight_g || scanResult.estimated_weight_g,
+          health_score: scanResult.health_score,
+          ai_insights: scanResult.insights,
+        });
+        await loadMealsForDate(selectedDate);
+        Alert.alert('Meal Saved to Cloud! ☁️', `${scanResult.food_name} (${scanResult.calories} kcal) saved to your Supabase account.`);
+      }
+
+      setShowScannerModal(false);
+      setCapturedImageUri(null);
+      setScanResult(null);
+    } finally {
+      endWrite();
     }
-
-    setShowScannerModal(false);
-    setCapturedImageUri(null);
-    setScanResult(null);
-
-    Alert.alert('Meal Saved to Cloud! ☁️', `${scanResult.food_name} (${scanResult.calories} kcal) saved to your Supabase account.`);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <Animated.ScrollView
+        style={[styles.container, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.content}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
         {/* Top Header Bar */}
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.userProfileGroup} onPress={() => setShowProfileModal(true)}>
@@ -346,8 +591,8 @@ export default function HomeScreen() {
               style={styles.avatarImg}
             />
             <View>
-              <Text style={styles.greetingText}>{user ? 'Good morning!' : 'Welcome'}</Text>
-              <Text style={styles.userNameText}>{userName}</Text>
+              <Text style={[styles.greetingText, { color: colors.textSecondary }]}>{user ? t('good_morning') : t('welcome')}</Text>
+              <Text style={[styles.userNameText, { color: colors.textPrimary }]}>{userName}</Text>
             </View>
           </TouchableOpacity>
 
@@ -358,7 +603,7 @@ export default function HomeScreen() {
                 onPress={() => router.push('/auth' as any)}
               >
                 <Ionicons name="log-in-outline" size={14} color="#0F172A" />
-                <Text style={styles.guestLoginPillText}>Sign In</Text>
+                <Text style={styles.guestLoginPillText}>{t('sign_in')}</Text>
               </TouchableOpacity>
             )}
 
@@ -369,34 +614,19 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Guest Mode Banner if not logged in */}
-        {!user && (
-          <TouchableOpacity
-            style={styles.guestBannerCard}
-            onPress={() => router.push('/auth' as any)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.guestBannerIcon}>
-              <Ionicons name="cloud-upload-outline" size={20} color="#84CC16" />
-            </View>
-            <View style={styles.guestBannerTextCol}>
-              <Text style={styles.guestBannerTitle}>Guest Mode Active</Text>
-              <Text style={styles.guestBannerSub}>Sign in to save your AI photo meal scans to cloud DB.</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#0F172A" />
-          </TouchableOpacity>
-        )}
+        {/* AdMob Banner Ad (Disappears ONLY if PRO plan is active) */}
+        <AdBanner location="home_page" />
 
         {/* Hero Weekly Progress Card */}
         <View style={styles.weeklyProgressHeroCard}>
           <View style={styles.heroLeftCol}>
             <View style={styles.dailyIntakePill}>
               <Ionicons name="flash" size={12} color="#0F172A" />
-              <Text style={styles.dailyIntakePillText}>Daily intake</Text>
+              <Text style={styles.dailyIntakePillText}>{t('daily_intake')}</Text>
             </View>
-            <Text style={styles.heroWeeklyTitle}>Your Weekly{'\n'}Progress</Text>
+            <Text style={styles.heroWeeklyTitle}>{t('daily_progress')}</Text>
             <Text style={styles.heroSubText}>
-              {totalCalories} / {targetCalories} kcal logged today
+              {totalCalories} / {targetCalories} {t('kcal_logged')}
             </Text>
           </View>
 
@@ -411,16 +641,121 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* 2-Grid Stats Widgets */}
+        {/* Dynamic Daily Macro Visualization Card (3D Vertical Tilt Entrance on Scroll) */}
+        <Animated.View style={[styles.macroCard, animatedMacroStyle]}>
+          <View style={styles.macroHeaderRow}>
+            <View style={styles.macroTitleGroup}>
+              <View style={styles.macroIconCircle}>
+                <Ionicons name="pie-chart" size={16} color="#84CC16" />
+              </View>
+              <View>
+                <Text style={styles.macroCardTitle}>Daily Macro Targets</Text>
+                <Text style={styles.macroCardSub}>Updated dynamically from logged meals</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* 3 Donut/Circular Rings in a Single Row */}
+          <View style={styles.macroRingsRow}>
+            <MacroRingItem
+              label="Protein"
+              emoji="🍗"
+              current={totalProtein}
+              target={targetProtein}
+              color="#84CC16"
+            />
+            <MacroRingItem
+              label="Carbs"
+              emoji="🍞"
+              current={totalCarbs}
+              target={targetCarbs}
+              color="#38BDF8"
+            />
+            <MacroRingItem
+              label="Fats"
+              emoji="🥑"
+              current={totalFat}
+              target={targetFat}
+              color="#F97316"
+            />
+          </View>
+        </Animated.View>
+
+        {/* Real AI Scanner Action Buttons Card */}
+        <View style={styles.aiActionCard}>
+          <View style={styles.aiActionHeader}>
+            <View style={styles.aiBadge}>
+              <View style={styles.aiBadgeIconCircle}>
+                <Ionicons name="camera" size={11} color="#14181B" />
+              </View>
+              <Text style={styles.aiBadgeText}>REAL AI VISION SCANNER</Text>
+            </View>
+          </View>
+
+          <Text style={styles.aiActionTitle}>{t('snap_meal_photo')}</Text>
+
+          <View style={styles.scanBtnRow}>
+            {/* AI Photo Scan (Primary/Filled Active) */}
+            <TouchableOpacity
+              style={[styles.scanTabBtn, styles.scanTabPrimary]}
+              onPress={handleAiPhotoScanChoice}
+              activeOpacity={0.85}
+            >
+              <View style={styles.scanTabIconBoxPrimary}>
+                <Ionicons name="camera-outline" size={18} color="#14181B" />
+              </View>
+              <Text style={styles.scanTabLabelPrimary}>{t('ai_photo_scan')}</Text>
+              <Text style={styles.scanTabSubPrimary}>Recommended</Text>
+            </TouchableOpacity>
+
+            {/* Log Manuale (Neutral) */}
+            <TouchableOpacity
+              style={styles.scanTabBtn}
+              onPress={() => setShowManualMealModal(true)}
+              activeOpacity={0.85}
+            >
+              <View style={styles.scanTabIconBoxNeutral}>
+                <Ionicons name="create-outline" size={17} color="#4B5259" />
+              </View>
+              <Text style={styles.scanTabLabelNeutral}>{t('manual_log')}</Text>
+              <Text style={styles.scanTabSubNeutral}>Type it in</Text>
+            </TouchableOpacity>
+
+            {/* Barcode Scan (Neutral) */}
+            <TouchableOpacity
+              style={styles.scanTabBtn}
+              onPress={() => {
+                if (!isPro) {
+                  setAdPurpose('barcode_scan');
+                  setShowAdScanModal(true);
+                } else {
+                  setShowBarcodeModal(true);
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <View style={styles.scanTabIconBoxNeutral}>
+                <Ionicons name="barcode-outline" size={17} color="#4B5259" />
+              </View>
+              <Text style={styles.scanTabLabelNeutral}>{t('barcode_scan')}</Text>
+              <Text style={styles.scanTabSubNeutral}>Packaged food</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Daily Water Hydration Tracker Card */}
+        <WaterTrackerCard />
+
+        {/* 2-Grid Stats Widgets (Moved below Daily Hydration) */}
         <View style={styles.statsGridRow}>
           <View style={styles.statWidgetCard}>
             <View style={styles.statHeaderRow}>
               <View style={[styles.statIconBox, { backgroundColor: '#FFEDD5' }]}>
                 <Ionicons name="footsteps" size={16} color="#F97316" />
               </View>
-              <Text style={styles.statWidgetTitle}>Step to walk</Text>
+              <Text style={styles.statWidgetTitle}>{t('step_walk')}</Text>
             </View>
-            <Text style={styles.statWidgetBigNum}>5,500 <Text style={styles.statWidgetUnit}>steps</Text></Text>
+            <Text style={styles.statWidgetBigNum}>5,500 <Text style={styles.statWidgetUnit}>{t('steps')}</Text></Text>
           </View>
 
           <View style={styles.statWidgetCard}>
@@ -434,37 +769,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Real AI Scanner Action Buttons Card */}
-        <View style={styles.aiActionCard}>
-          <View style={styles.aiActionHeader}>
-            <View style={styles.aiBadge}>
-              <Ionicons name="camera" size={14} color="#84CC16" />
-              <Text style={styles.aiBadgeText}>REAL AI VISION SCANNER</Text>
-            </View>
-          </View>
-
-          <Text style={styles.aiActionTitle}>Snap any Fruit or Meal Photo for Real AI Analysis</Text>
-
-          <View style={styles.scanBtnRow}>
-            <TouchableOpacity
-              style={styles.cameraScanBtn}
-              onPress={handleLaunchCamera}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="camera-outline" size={18} color="#0F172A" />
-              <Text style={styles.cameraScanBtnText}>Take Photo</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.galleryScanBtn}
-              onPress={handleLaunchGallery}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="images-outline" size={18} color="#0F172A" />
-              <Text style={styles.galleryScanBtnText}>Choose Photo</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Intermittent Fasting Timer Card */}
+        <FastingTimerCard onUnlockPro={() => openPaywall('fasting_timer')} />
 
         {/* Dynamic Interactive Calendar Strip */}
         <View style={styles.calendarSection}>
@@ -565,7 +871,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Real AI Camera Vision Modal */}
       <Modal
@@ -845,6 +1151,16 @@ export default function HomeScreen() {
       <ProfileModal visible={showProfileModal} onClose={() => setShowProfileModal(false)} />
       <NotificationModal visible={showNotifModal} onClose={() => setShowNotifModal(false)} />
       <AdScanModal visible={showAdScanModal} onAdCompleted={handleAdCompleted} onClose={() => setShowAdScanModal(false)} />
+      <ManualMealModal
+        visible={showManualMealModal}
+        onClose={() => setShowManualMealModal(false)}
+        onMealAdded={handleAddManualOrBarcodeMeal}
+      />
+      <BarcodeScannerModal
+        visible={showBarcodeModal}
+        onClose={() => setShowBarcodeModal(false)}
+        onMealAdded={handleAddManualOrBarcodeMeal}
+      />
       <PaywallModal />
     </SafeAreaView>
   );
@@ -1077,31 +1393,41 @@ const styles = StyleSheet.create({
   },
   aiActionCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1.5,
-    borderColor: '#BEF264',
+    borderColor: '#E7E5DB',
     marginBottom: 20,
   },
   aiActionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   aiBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7FEE7',
+    backgroundColor: '#F0FACB',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 8,
+  },
+  aiBadgeIconCircle: {
+    width: 20,
+    height: 20,
     borderRadius: 10,
-    gap: 6,
+    backgroundColor: '#9CC400',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   aiBadgeText: {
-    color: '#84CC16',
-    fontSize: 10,
-    fontWeight: '800',
+    color: '#9CC400',
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   keyBtn: {
     flexDirection: 'row',
@@ -1118,44 +1444,74 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   aiActionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 14,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#14181B',
+    marginBottom: 18,
+    lineHeight: 25,
   },
   scanBtnRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
-  cameraScanBtn: {
+  scanTabBtn: {
     flex: 1,
-    backgroundColor: '#BEF264',
-    paddingVertical: 12,
-    borderRadius: 14,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderRadius: 16,
+    backgroundColor: '#F3F2EA',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     gap: 6,
   },
-  cameraScanBtnText: {
-    color: '#0F172A',
-    fontSize: 14,
-    fontWeight: '800',
+  scanTabPrimary: {
+    backgroundColor: '#C8F31D',
+    borderColor: '#9CC400',
   },
-  galleryScanBtn: {
-    flex: 1,
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 12,
-    borderRadius: 14,
-    flexDirection: 'row',
+  scanTabIconBoxPrimary: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(20, 24, 27, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
   },
-  galleryScanBtnText: {
-    color: '#0F172A',
-    fontSize: 14,
-    fontWeight: '800',
+  scanTabIconBoxNeutral: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#E7E5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanTabLabelPrimary: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#14181B',
+    textAlign: 'center',
+    lineHeight: 15,
+  },
+  scanTabLabelNeutral: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#14181B',
+    textAlign: 'center',
+    lineHeight: 15,
+  },
+  scanTabSubPrimary: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: 'rgba(20, 24, 27, 0.65)',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  scanTabSubNeutral: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#9A9F95',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   calendarSection: {
     marginBottom: 20,
@@ -1680,5 +2036,92 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#64748B',
+  },
+  macroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
+    shadowColor: '#84CC16',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  macroHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  macroTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  macroIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F7FEE7',
+    borderWidth: 1,
+    borderColor: '#BEF264',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  macroCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  macroCardSub: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  macroRingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 2,
+    paddingTop: 4,
+  },
+  macroRingCardItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  macroRingCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  macroRingVal: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+    fontFamily: Platform.OS === 'ios' ? 'Space Grotesk' : 'sans-serif-bold',
+  },
+  macroRingLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  macroRingSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 6,
+  },
+  macroRingBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  macroRingBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
   },
 });

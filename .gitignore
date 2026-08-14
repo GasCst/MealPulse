@@ -43,3 +43,7 @@ app-example
 
 # generated native folders
 /ios
+
+# temporary ad logs
+android/*.txt
+*.txt

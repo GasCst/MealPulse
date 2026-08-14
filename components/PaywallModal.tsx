@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, MonetizationPlans } from '@/constants/theme';
 import { useSubscription, PlanType } from '@/context/SubscriptionContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { SpinWheelModal } from '@/components/SpinWheelModal';
 import { BeautifulAlertModal, BeautifulAlertProps } from '@/components/BeautifulAlertModal';
 
@@ -23,7 +24,8 @@ interface PaywallModalProps {
 }
 
 export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) => {
-  const { showPaywall, closePaywall, subscribe, restorePurchases, paywallSource } = useSubscription();
+  const { isPro, hasSeenSpinWheel, setHasSeenSpinWheel, showPaywall, closePaywall, subscribe, restorePurchases, paywallSource } = useSubscription();
+  const { t } = useLanguage();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('weekly');
   const [loading, setLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(599); // 09:59 countdown
@@ -42,7 +44,12 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
   const handleClose = onClose || closePaywall;
 
   const handleDismissPaywall = () => {
-    setShowSpinWheelModal(true);
+    if (!isPro && !hasSeenSpinWheel) {
+      setHasSeenSpinWheel(true);
+      setShowSpinWheelModal(true);
+    } else {
+      handleClose();
+    }
   };
 
   useEffect(() => {
@@ -138,7 +145,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
             <View style={styles.headerRow}>
               <View style={styles.proBadge}>
                 <Ionicons name="sparkles" size={14} color="#0F172A" />
-                <Text style={styles.proBadgeText}>LIMITED TIME OFFER</Text>
+                <Text style={styles.proBadgeText}>{t('paywall_badge')}</Text>
               </View>
               <TouchableOpacity onPress={handleDismissPaywall} style={styles.closeBtn}>
                 <Ionicons name="close" size={24} color="#64748B" />
@@ -159,12 +166,8 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
             <View style={styles.crownCircle}>
               <Ionicons name="nutrition" size={36} color="#84CC16" />
             </View>
-            <Text style={styles.heroTitle}>Unlock MealPulse PRO</Text>
-            <Text style={styles.heroSubtitle}>
-              {paywallSource === 'limit_reached'
-                ? '⚡ You hit your free 3-scan daily limit! Upgrade now for unlimited AI camera photo meal scans & macro tracking.'
-                : 'Instantly estimate calories & macros from plate photos, hit your body goals 3x faster, and get AI nutrition coaching.'}
-            </Text>
+            <Text style={styles.heroTitle}>{t('paywall_hero_title')}</Text>
+            <Text style={styles.heroSubtitle}>{t('paywall_hero_sub')}</Text>
           </View>
 
           {/* Plan Selector Options */}
@@ -180,12 +183,12 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
             >
               {selectedPlan === 'weekly' && (
                 <View style={styles.trialBadge}>
-                  <Text style={styles.trialBadgeText}>POPULAR TRIAL</Text>
+                  <Text style={styles.trialBadgeText}>{t('most_popular')}</Text>
                 </View>
               )}
               <View style={styles.planHeader}>
                 <View style={styles.planTitleGroup}>
-                  <Text style={styles.planName}>{MonetizationPlans.weekly.name}</Text>
+                  <Text style={styles.planName}>{t('weekly_plan')}</Text>
                   <Text style={styles.planDesc}>{MonetizationPlans.weekly.description}</Text>
                 </View>
                 <View style={styles.planPriceGroup}>
@@ -195,7 +198,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
               </View>
               <View style={styles.trialPill}>
                 <Ionicons name="checkmark-circle" size={14} color="#84CC16" />
-                <Text style={styles.trialPillText}>Includes 3-Day Free Trial (Cancel anytime)</Text>
+                <Text style={styles.trialPillText}>{t('cancel_anytime')}</Text>
               </View>
             </TouchableOpacity>
 
@@ -213,7 +216,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
               </View>
               <View style={styles.planHeader}>
                 <View style={styles.planTitleGroup}>
-                  <Text style={styles.planName}>{MonetizationPlans.monthly.name}</Text>
+                  <Text style={styles.planName}>{t('monthly_plan')}</Text>
                   <Text style={styles.planDesc}>{MonetizationPlans.monthly.description}</Text>
                 </View>
                 <View style={styles.planPriceGroup}>
@@ -233,11 +236,11 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
               activeOpacity={0.8}
             >
               <View style={[styles.discountTag, { backgroundColor: '#10B981' }]}>
-                <Text style={styles.discountTagText}>BEST VALUE (70% OFF)</Text>
+                <Text style={styles.discountTagText}>{t('save_70')}</Text>
               </View>
               <View style={styles.planHeader}>
                 <View style={styles.planTitleGroup}>
-                  <Text style={styles.planName}>{MonetizationPlans.yearly.name}</Text>
+                  <Text style={styles.planName}>{t('yearly_plan')}</Text>
                   <Text style={styles.planDesc}>{MonetizationPlans.yearly.description}</Text>
                 </View>
                 <View style={styles.planPriceGroup}>
@@ -250,34 +253,32 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
 
           {/* Premium Features List */}
           <View style={styles.featuresSection}>
-            <Text style={styles.featuresTitle}>What is included in MealPulse PRO:</Text>
+            <Text style={styles.featuresTitle}>{t('features_overview')}</Text>
             {[
-              { icon: 'close-circle', text: '🚫 100% Ad-Free Clean App Experience' },
-              { icon: 'camera', text: '♾️ Unlimited Camera AI Photo Meal Scans' },
-              { icon: 'scale', text: '⚖️ Object Item Counting & Volumetric Weight Math' },
-              { icon: 'cloud-done', text: '☁️ Permanent Cloud History & Daily Sync' },
-              { icon: 'analytics', text: '🥗 AI Nutrition Coach Recommendations & Health Score' },
+              { icon: 'camera', title: t('feature_1_title'), sub: t('feature_1_sub') },
+              { icon: 'close-circle', title: t('feature_2_title'), sub: t('feature_2_sub') },
+              { icon: 'barcode', title: t('feature_3_title'), sub: t('feature_3_sub') },
             ].map((item, index) => (
               <View key={index} style={styles.featureRow}>
                 <View style={styles.featureIconBox}>
                   <Ionicons name={item.icon as any} size={18} color="#84CC16" />
                 </View>
-                <Text style={styles.featureText}>{item.text}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.featureText}>{item.title}</Text>
+                  <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{item.sub}</Text>
+                </View>
               </View>
             ))}
           </View>
 
-          {/* Social Proof */}
+          {/* Guarantee Box */}
           <View style={styles.testimonialCard}>
-            <View style={styles.starsRow}>
-              {[...Array(5)].map((_, i) => (
-                <Ionicons key={i} name="star" size={14} color="#F59E0B" />
-              ))}
-            </View>
-            <Text style={styles.testimonialText}>
-              &quot;MealPulse AI made tracking calories effortless. Just snap a photo of my plate and it calculates everything! Lost 12 lbs in 4 weeks!&quot;
+            <Text style={[styles.testimonialAuthor, { fontSize: 13, color: '#0F172A', fontWeight: '800' }]}>
+              {t('guarantee_title')}
             </Text>
-            <Text style={styles.testimonialAuthor}>— Sarah M., Fitness Enthusiast</Text>
+            <Text style={[styles.testimonialText, { fontSize: 12, marginTop: 4 }]}>
+              {t('guarantee_sub')}
+            </Text>
           </View>
 
           {/* Action CTA Button */}
@@ -292,7 +293,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
             ) : (
               <View style={styles.ctaContent}>
                 <Text style={styles.ctaText}>
-                  {selectedPlan === 'weekly' ? 'Start 3-Day Free Trial' : 'Unlock PRO Access Now'}
+                  {selectedPlan === 'weekly' ? t('start_trial') : t('subscribe_now')}
                 </Text>
                 <Ionicons name="arrow-forward" size={20} color="#0F172A" style={{ marginLeft: 8 }} />
               </View>
@@ -300,13 +301,13 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
           </TouchableOpacity>
 
           <Text style={styles.guaranteeText}>
-            🔒 Secured by App Store / Google Play. Cancel anytime in 1 tap.
+            🔒 {t('cancel_anytime')}
           </Text>
 
           {/* Footer Links */}
           <View style={styles.footerRow}>
             <TouchableOpacity onPress={handleRestore}>
-              <Text style={styles.footerLink}>Restore Purchases</Text>
+              <Text style={styles.footerLink}>{t('restore_purchases')}</Text>
             </TouchableOpacity>
             <Text style={styles.footerDivider}>•</Text>
             <TouchableOpacity onPress={() => Alert.alert('Terms of Service', 'Standard Apple EULA & MealPulse Terms.')}>

@@ -11,11 +11,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
 
 export default function AuditRewardsScreen() {
   const { user, isPro, openPaywall } = useSubscription();
+  const { t } = useLanguage();
+  const { isDarkMode, colors } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [mealLogs, setMealLogs] = useState<CloudMealLog[]>([]);
@@ -102,17 +106,17 @@ export default function AuditRewardsScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Daily Score & Rewards 🏆</Text>
-            <Text style={styles.subtitle}>Calorie Compliance & Active Streaks</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Daily Score & Rewards 🏆</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Calorie Compliance & Active Streaks</Text>
           </View>
 
-          <TouchableOpacity style={styles.refreshBtn} onPress={loadUserRewards}>
-            <Ionicons name="refresh" size={18} color="#0F172A" />
+          <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: colors.inputBg }]} onPress={loadUserRewards}>
+            <Ionicons name="refresh" size={18} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 

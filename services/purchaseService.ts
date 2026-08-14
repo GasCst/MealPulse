@@ -1,3 +1,5 @@
+// TODO: Consolidate RevenueCatService and PurchaseService into one authoritative purchase service.
+
 import Purchases, {
   LOG_LEVEL,
   CustomerInfo,
@@ -14,6 +16,7 @@ export const REVENUECAT_API_KEY =
   'goog_YxUeSuCRkVKXHdqmsItCZscxTMF';
 
 export const ENTITLEMENT_ID = 'MEALPULSEAI Pro';
+export const PRO_ENTITLEMENT_KEYS = ['MEALPULSEAI Pro', 'pro', 'MEALPULSEAI_Pro', 'pro_access'];
 
 export class PurchaseService {
   private static isInitialized = false;
@@ -44,16 +47,12 @@ export class PurchaseService {
   }
 
   /**
-   * 2. Checks if user has active entitlement for 'MEALPULSEAI Pro'
+   * 2. Checks if user has active entitlement for PRO
    */
   static isEntitledToPro(customerInfo: CustomerInfo | null): boolean {
     if (!customerInfo) return false;
-    const entitlements = customerInfo.entitlements.active;
-    return (
-      entitlements[ENTITLEMENT_ID] !== undefined ||
-      entitlements['pro'] !== undefined ||
-      entitlements['MEALPULSEAI_Pro'] !== undefined
-    );
+    const active = customerInfo.entitlements.active;
+    return PRO_ENTITLEMENT_KEYS.some((key) => active[key] !== undefined);
   }
 
   /**

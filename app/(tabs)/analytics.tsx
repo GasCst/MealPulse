@@ -10,16 +10,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
 
 export default function StatisticsScreen() {
-  const { user, openPaywall } = useSubscription();
+  const { user, openPaywall, targetCalories } = useSubscription();
+  const { t } = useLanguage();
+  const { isDarkMode, colors } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [weeklyLogs, setWeeklyLogs] = useState<CloudMealLog[]>([]);
 
-  const targetCalorieGoal = 1920;
+  const targetCalorieGoal = targetCalories;
 
   useEffect(() => {
     loadWeeklyAnalytics();
@@ -82,33 +86,33 @@ export default function StatisticsScreen() {
   const todayCalories = dayCalorieTotals[todayDayName] || 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
         {/* Top Header Bar */}
         <View style={styles.topHeaderBar}>
-          <Text style={styles.headerTitle}>Real Macro Statistics 📊</Text>
-          <TouchableOpacity style={styles.circleBackBtn} onPress={loadWeeklyAnalytics}>
-            <Ionicons name="refresh" size={18} color="#1E293B" />
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Real Macro Statistics 📊</Text>
+          <TouchableOpacity style={[styles.circleBackBtn, { backgroundColor: colors.inputBg }]} onPress={loadWeeklyAnalytics}>
+            <Ionicons name="refresh" size={18} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* Hero Calories Counter */}
-        <View style={styles.caloriesHeroSection}>
-          <Text style={styles.caloriesLabel}>Today's Logged Calories</Text>
+        <View style={[styles.caloriesHeroSection, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 }]}>
+          <Text style={[styles.caloriesLabel, { color: colors.textSecondary }]}>Today's Logged Calories</Text>
           <View style={styles.caloriesNumberRow}>
-            <Text style={styles.caloriesBigVal}>{todayCalories}</Text>
+            <Text style={[styles.caloriesBigVal, { color: colors.textPrimary }]}>{todayCalories}</Text>
             <Text style={styles.kcalUnit}>Kcal</Text>
-            <Text style={styles.targetCalText}>
-              Target: <Text style={styles.targetBold}>{targetCalorieGoal} Kcal</Text>
+            <Text style={[styles.targetCalText, { color: colors.textSecondary }]}>
+              Target: <Text style={[styles.targetBold, { color: colors.textPrimary }]}>{targetCalorieGoal} Kcal</Text>
             </Text>
           </View>
         </View>
 
         {/* Bar Chart Container */}
-        <View style={styles.chartCard}>
+        <View style={[styles.chartCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
           <View style={styles.chartTitleRow}>
-            <Text style={styles.chartTitle}>Weekly Daily Calorie Compliance</Text>
-            <Text style={styles.chartSub}>Target: {targetCalorieGoal} kcal/day</Text>
+            <Text style={[styles.chartTitle, { color: colors.textPrimary }]}>Weekly Daily Calorie Compliance</Text>
+            <Text style={[styles.chartSub, { color: colors.textSecondary }]}>Target: {targetCalorieGoal} kcal/day</Text>
           </View>
 
           {loading ? (

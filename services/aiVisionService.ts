@@ -12,6 +12,43 @@ export interface MealVisionResult {
   insights: string;
 }
 
+function safeParseMealResult(rawText: string, defaultName: string): MealVisionResult {
+  try {
+    const cleanJson = rawText.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
+    const estWeight = Math.round(parsed.estimated_weight_g || (parsed.item_count && parsed.unit_weight_g ? parsed.item_count * parsed.unit_weight_g : 150));
+
+    return {
+      food_name: parsed.food_name || defaultName,
+      estimated_weight_g: estWeight,
+      item_count: parsed.item_count || 1,
+      unit_weight_g: parsed.unit_weight_g || estWeight,
+      calories: Math.round(parsed.calories || 150),
+      protein_g: Math.round((parsed.protein_g || 5) * 10) / 10,
+      carbs_g: Math.round((parsed.carbs_g || 20) * 10) / 10,
+      fat_g: Math.round((parsed.fat_g || 2) * 10) / 10,
+      confidence: parsed.confidence || 0.95,
+      health_score: parsed.health_score || 9,
+      insights: parsed.insights || `Counted portion (~${estWeight}g total). Nutritious whole food.`,
+    };
+  } catch (err) {
+    console.warn('[AI Vision] JSON parsing failed, using safe fallback result:', err);
+    return {
+      food_name: defaultName,
+      estimated_weight_g: 150,
+      item_count: 1,
+      unit_weight_g: 150,
+      calories: 150,
+      protein_g: 5,
+      carbs_g: 20,
+      fat_g: 2,
+      confidence: 0.85,
+      health_score: 8,
+      insights: 'AI scan complete. Verify portion weight and macro values.',
+    };
+  }
+}
+
 /**
  * Executes Real Google Gemini Vision API Call with base64 image and step-by-step logging
  */
@@ -82,26 +119,7 @@ Return ONLY a valid JSON object with keys:
 
       if (!data.error && data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
         const rawText = data.candidates[0].content.parts[0].text.trim();
-        const cleanJson = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const parsed = JSON.parse(cleanJson);
-
-        const estWeight = Math.round(parsed.estimated_weight_g || (parsed.item_count && parsed.unit_weight_g ? parsed.item_count * parsed.unit_weight_g : 150));
-
-        console.log(`[AI Vision Step 5] SUCCESS! Food: "${parsed.food_name}", Count: ${parsed.item_count || 1}, Weight: ${estWeight}g, Calories: ${parsed.calories}`);
-
-        return {
-          food_name: parsed.food_name || 'AI Analyzed Food',
-          estimated_weight_g: estWeight,
-          item_count: parsed.item_count || 1,
-          unit_weight_g: parsed.unit_weight_g || estWeight,
-          calories: Math.round(parsed.calories || 150),
-          protein_g: Math.round((parsed.protein_g || 5) * 10) / 10,
-          carbs_g: Math.round((parsed.carbs_g || 20) * 10) / 10,
-          fat_g: Math.round((parsed.fat_g || 2) * 10) / 10,
-          confidence: parsed.confidence || 0.96,
-          health_score: parsed.health_score || 9,
-          insights: parsed.insights || `Counted portion (~${estWeight}g total). Nutritious whole food.`,
-        };
+        return safeParseMealResult(rawText, 'AI Analyzed Food');
       } else if (data.error) {
         lastError = data.error.message || JSON.stringify(data.error);
         console.warn(`[AI Vision Step 4.${i + 1} Warning] Google API Error: ${lastError}`);
@@ -119,7 +137,6 @@ Return ONLY a valid JSON object with keys:
     const listData = await listRes.json();
 
     if (listData.models && Array.isArray(listData.models)) {
-      // Find candidate model that is NOT currently rate-limited (excluding gemini-2.5-flash if 429)
       const visionModels = listData.models.filter(
         (m: any) => m.supportedGenerationMethods?.includes('generateContent') && (m.name.includes('flash') || m.name.includes('vision') || m.name.includes('gemini'))
       );
@@ -153,22 +170,7 @@ Return ONLY a valid JSON object with keys:
 
         if (!data.error && data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
           const rawText = data.candidates[0].content.parts[0].text.trim();
-          const cleanJson = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          const parsed = JSON.parse(cleanJson);
-          const estWeight = Math.round(parsed.estimated_weight_g || (parsed.item_count && parsed.unit_weight_g ? parsed.item_count * parsed.unit_weight_g : 150));
-          return {
-            food_name: parsed.food_name || 'AI Analyzed Food',
-            estimated_weight_g: estWeight,
-            item_count: parsed.item_count || 1,
-            unit_weight_g: parsed.unit_weight_g || estWeight,
-            calories: Math.round(parsed.calories || 150),
-            protein_g: Math.round((parsed.protein_g || 5) * 10) / 10,
-            carbs_g: Math.round((parsed.carbs_g || 20) * 10) / 10,
-            fat_g: Math.round((parsed.fat_g || 2) * 10) / 10,
-            confidence: parsed.confidence || 0.96,
-            health_score: parsed.health_score || 9,
-            insights: parsed.insights || 'Nutritious meal detected by Google Gemini.',
-          };
+          return safeParseMealResult(rawText, 'AI Analyzed Food');
         }
       }
     }
@@ -221,21 +223,8 @@ async function callOpenAiVisionAPI(base64Data: string, apiKey: string): Promise<
   }
 
   if (data.choices && data.choices[0]?.message?.content) {
-    const parsed = JSON.parse(data.choices[0].message.content);
-    const estWeight = Math.round(parsed.estimated_weight_g || (parsed.item_count && parsed.unit_weight_g ? parsed.item_count * parsed.unit_weight_g : 150));
-    return {
-      food_name: parsed.food_name || 'AI Analyzed Food',
-      estimated_weight_g: estWeight,
-      item_count: parsed.item_count || 1,
-      unit_weight_g: parsed.unit_weight_g || estWeight,
-      calories: Math.round(parsed.calories || 150),
-      protein_g: Math.round((parsed.protein_g || 5) * 10) / 10,
-      carbs_g: Math.round((parsed.carbs_g || 20) * 10) / 10,
-      fat_g: Math.round((parsed.fat_g || 2) * 10) / 10,
-      confidence: parsed.confidence || 0.95,
-      health_score: parsed.health_score || 9,
-      insights: parsed.insights || 'Nutritious whole food option detected by OpenAI Vision.',
-    };
+    const rawText = data.choices[0].message.content.trim();
+    return safeParseMealResult(rawText, 'AI Analyzed Food');
   }
 
   throw new Error('OpenAI Vision API did not return a valid completion response.');
@@ -261,9 +250,7 @@ export async function analyzeMealPlateImage(
   }
 
   const inAppKey = userApiKey?.trim();
-  const envGeminiKey =
-    process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim() ||
-    'AQ.Ab8RN6JYx8SCCc6JIN9uPWNj2ad2DuH8bpdK3Jg2eLJ9AYxAXg';
+  const envGeminiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
   const envOpenAiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim();
 
   console.log(`[AI Vision Step 2] In-App Key set: ${inAppKey ? 'YES (' + inAppKey.substring(0, 6) + '...)' : 'NO'}`);
@@ -278,7 +265,6 @@ export async function analyzeMealPlateImage(
       return await callGeminiVisionAPI(cleanBase64, geminiKey);
     } catch (e: any) {
       console.warn('[AI Vision Step 2 Notice] Gemini API rate limit or error encountered:', e.message);
-      // Fall through to OpenAI if OpenAI key exists
       if (envOpenAiKey) {
         console.log('[AI Vision Failover] Automatic failover to OpenAI GPT-4o Vision API...');
         return await callOpenAiVisionAPI(cleanBase64, envOpenAiKey);

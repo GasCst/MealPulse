@@ -1,17 +1,19 @@
 import React, { useEffect } from 'react';
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { SubscriptionProvider } from '@/context/SubscriptionContext';
+import { LanguageProvider } from '@/context/LanguageContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { RevenueCatService } from '@/services/revenueCatService';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient || (Constants as any).appOwnership === 'expo';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'index',
 };
 
 import mobileAds from 'react-native-google-mobile-ads';
@@ -27,6 +29,9 @@ export default function RootLayout() {
         console.warn('[RootLayout] RevenueCat init warning:', e);
       }
       try {
+        mobileAds().setRequestConfiguration({
+          testDeviceIdentifiers: ['EMULATOR', 'F3FCA862873FD255B71A17B00F6983A9'],
+        }).catch(() => {});
         mobileAds().initialize().then(() => {
           console.log('[RootLayout] Google Mobile Ads initialized.');
         }).catch((err) => {
@@ -39,21 +44,26 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SubscriptionProvider>
-      <ThemeProvider value={DarkTheme}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#F8FAFC' },
-          }}
-        >
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Info' }} />
-        </Stack>
-        <NotificationPromptModal />
-        <StatusBar style="dark" />
-      </ThemeProvider>
-    </SubscriptionProvider>
+    <ThemeProvider>
+      <LanguageProvider>
+        <SubscriptionProvider>
+          <NavThemeProvider value={DarkTheme}>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: '#F8FAFC' },
+              }}
+            >
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Info' }} />
+            </Stack>
+            <NotificationPromptModal />
+            <StatusBar style="auto" />
+          </NavThemeProvider>
+        </SubscriptionProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }

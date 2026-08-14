@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { Colors } from '@/constants/theme';
 import { PaywallModal } from '@/components/PaywallModal';
+import { SupabaseService } from '@/services/supabaseService';
 
 interface Habit {
   id: string;
@@ -24,7 +25,7 @@ interface Habit {
 }
 
 export default function HabitsScreen() {
-  const { isPro, openPaywall } = useSubscription();
+  const { isPro, openPaywall, user } = useSubscription();
 
   const [habits, setHabits] = useState<Habit[]>([
     { id: '1', title: '25-min Deep Focus Sprint', category: 'Focus', streak: 7, completedToday: true },
@@ -35,24 +36,50 @@ export default function HabitsScreen() {
 
   const [newHabitText, setNewHabitText] = useState('');
 
-  const toggleHabit = (id: string) => {
+  useEffect(() => {
+    if (!user?.id) return;
+    SupabaseService.fetchUserHabits(user.id).then((cloudHabits) => {
+      if (cloudHabits && cloudHabits.length > 0) {
+        const mapped: Habit[] = cloudHabits.map((h: any) => ({
+          id: h.id,
+          title: h.title,
+          category: h.category || 'Custom',
+          streak: h.streak || 0,
+          completedToday: h.completed_today ?? false,
+          isProOnly: h.is_pro_only ?? false,
+        }));
+        setHabits(mapped);
+      }
+    });
+  }, [user]);
+
+  const toggleHabit = async (id: string) => {
+    let updatedHabit: Habit | undefined;
+
     setHabits((prev) =>
       prev.map((h) => {
         if (h.id === id) {
           const nextCompleted = !h.completedToday;
-          return {
+          updatedHabit = {
             ...h,
             completedToday: nextCompleted,
             streak: nextCompleted ? h.streak + 1 : Math.max(0, h.streak - 1),
           };
+          return updatedHabit;
         }
         return h;
       })
     );
+
+    if (updatedHabit && user?.id) {
+      await SupabaseService.updateUserHabit(id, {
+        completed_today: updatedHabit.completedToday,
+        streak: updatedHabit.streak,
+      });
+    }
   };
 
-  const handleAddHabit = () => {
-    // If not PRO and user has >= 3 habits, trigger paywall!
+  const handleAddHabit = async () => {
     if (!isPro && habits.length >= 3) {
       openPaywall('habit_limit');
       return;
@@ -60,16 +87,38 @@ export default function HabitsScreen() {
 
     if (!newHabitText.trim()) return;
 
+    const title = newHabitText.trim();
+    setNewHabitText('');
+
+    if (user?.id) {
+      const created = await SupabaseService.saveUserHabit(user.id, {
+        title,
+        category: 'Custom',
+        streak: 1,
+        completedToday: true,
+      });
+
+      if (created) {
+        const newHabit: Habit = {
+          id: created.id,
+          title: created.title,
+          category: created.category || 'Custom',
+          streak: created.streak || 1,
+          completedToday: created.completed_today ?? true,
+        };
+        setHabits((prev) => [...prev, newHabit]);
+        return;
+      }
+    }
+
     const newHabit: Habit = {
       id: Date.now().toString(),
-      title: newHabitText,
+      title,
       category: 'Custom',
       streak: 1,
       completedToday: true,
     };
-
-    setHabits([...habits, newHabit]);
-    setNewHabitText('');
+    setHabits((prev) => [...prev, newHabit]);
   };
 
   return (

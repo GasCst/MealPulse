@@ -1,39 +1,37 @@
 import React, { useEffect } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { View, StyleSheet } from 'react-native';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { useTheme } from '@/context/ThemeContext';
 
 export default function TabLayout() {
-  const { hasCompletedOnboarding, openPaywall } = useSubscription();
+  const { hasCompletedOnboarding, isLoaded } = useSubscription();
+  const { t } = useLanguage();
+  const { isDarkMode, colors } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
-    if (!hasCompletedOnboarding) {
-      const timer = setTimeout(() => {
-        router.replace('/onboarding' as any);
-      }, 100);
-      return () => clearTimeout(timer);
+    if (isLoaded && !hasCompletedOnboarding) {
+      router.replace('/onboarding' as any);
     }
-  }, [hasCompletedOnboarding]);
-
-  const colors = Colors.light;
+  }, [isLoaded, hasCompletedOnboarding]);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#0F172A',
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: isDarkMode ? '#BEF264' : '#0F172A',
+        tabBarInactiveTintColor: isDarkMode ? '#64748B' : '#94A3B8',
+        tabBarStyle: [styles.tabBar, { backgroundColor: colors.cardBg, borderTopColor: colors.cardBorder }],
         tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t('tab_home'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
           ),
@@ -42,7 +40,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
-          title: 'Progress',
+          title: t('tab_progress'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'bar-chart' : 'bar-chart-outline'} size={22} color={color} />
           ),
@@ -68,7 +66,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="audit"
         options={{
-          title: 'Rewards',
+          title: t('tab_rewards'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'star' : 'star-outline'} size={22} color={color} />
           ),
@@ -77,7 +75,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="monetization"
         options={{
-          title: 'Menu',
+          title: t('tab_menu'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
           ),

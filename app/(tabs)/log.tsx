@@ -11,12 +11,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
 import { AdBanner } from '@/components/AdBanner';
 
 export default function LogScreen() {
   const { user } = useSubscription();
+  const { t } = useLanguage();
+  const { isDarkMode, colors } = useTheme();
 
   const [historyMeals, setHistoryMeals] = useState<CloudMealLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -55,21 +59,21 @@ export default function LogScreen() {
   const sortedDates = Object.keys(groupedMeals).sort((a, b) => b.localeCompare(a));
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Meal History & Hydration 📜</Text>
-            <Text style={styles.subtitle}>All Scanned Meals Saved Per Account</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Meal History & Hydration 📜</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>All Scanned Meals Saved Per Account</Text>
           </View>
-          <TouchableOpacity style={styles.refreshBtn} onPress={loadCloudMealHistory}>
-            <Ionicons name="refresh" size={18} color="#0F172A" />
+          <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: colors.inputBg }]} onPress={loadCloudMealHistory}>
+            <Ionicons name="refresh" size={18} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* Water Intake Tracker Hero Card */}
-        <View style={styles.waterCard}>
+        <View style={[styles.waterCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 }]}>
           <View style={styles.waterHeaderRow}>
             <View style={styles.waterBadge}>
               <Ionicons name="water" size={14} color="#0EA5E9" />
@@ -129,12 +133,15 @@ export default function LogScreen() {
               const dayMeals = groupedMeals[dateStr];
               const dayTotalCal = dayMeals.reduce((acc, m) => acc + (m.calories || 0), 0);
 
-              const formattedDate = new Date(dateStr).toLocaleDateString(undefined, {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              });
+              const targetDate = dateStr === 'Today' ? new Date() : new Date(dateStr);
+              const formattedDate = isNaN(targetDate.getTime())
+                ? dateStr
+                : targetDate.toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  });
 
               return (
                 <View key={dateStr} style={styles.dayGroupCard}>

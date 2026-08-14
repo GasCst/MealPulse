@@ -4,7 +4,7 @@
     "slug": "mealpulse-ai",
     "version": "2.1.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/icona_nuova.png",
     "scheme": "mealpulse",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -14,10 +14,10 @@
     },
     "android": {
       "package": "com.mealpulse.app",
-      "versionCode": 31,
+      "versionCode": 58,
       "adaptiveIcon": {
         "backgroundColor": "#BEF264",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/icona_nuova.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
