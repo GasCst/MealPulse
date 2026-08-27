@@ -319,7 +319,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         linkSubscription?.remove?.();
       } catch {}
       try {
-        listener?.remove?.();
+        (listener as any)?.remove?.();
       } catch {}
     };
   }, []);

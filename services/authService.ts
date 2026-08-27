@@ -2,6 +2,7 @@ import { supabase } from '@/services/supabaseService';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -77,6 +78,24 @@ export class AuthService {
     console.log('[Auth Step 1] Initiating Google OAuth Sign-In...');
 
     try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const webRedirect = `${window.location.origin}/auth/callback`;
+        console.log(`[Auth Web] Initiating Web OAuth with redirect: ${webRedirect}`);
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: webRedirect,
+            queryParams: {
+              prompt: 'select_account',
+            },
+          },
+        });
+        if (error) {
+          return { success: false, error: error.message };
+        }
+        return { success: true, error: null };
+      }
+
       const redirectUrl = Linking.createURL('auth/callback');
       console.log(`[Auth Step 2] Generated OAuth Redirect URI: ${redirectUrl}`);
 

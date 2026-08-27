@@ -4,11 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const SUPABASE_URL =
   process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://bjnqebnaboxufnxkngjb.supabase.co';
 
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-
-if (!SUPABASE_ANON_KEY) {
-  console.warn('[SupabaseService] EXPO_PUBLIC_SUPABASE_ANON_KEY environment variable is missing.');
-}
+const SUPABASE_ANON_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqbnFlYm5hYm94dWZueGtuZ2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyMzA0NjMsImV4cCI6MjEwMDgwNjQ2M30.UmzVcEv8KnGS70iKvUa0CCTpMMdWdO2WWI6GQVb1oiQ';
 
 const memoryStorage = new Map<string, string>();
 
