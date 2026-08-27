@@ -1,21 +1,17 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useSubscription } from '@/context/SubscriptionContext';
 
 export default function RootIndexScreen() {
   const { hasCompletedOnboarding, isLoaded } = useSubscription();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!isLoaded) return;
-
+  if (isLoaded) {
     if (!hasCompletedOnboarding) {
-      router.replace('/onboarding' as any);
-    } else {
-      router.replace('/(tabs)' as any);
+      return <Redirect href="/onboarding" />;
     }
-  }, [isLoaded, hasCompletedOnboarding]);
+    return <Redirect href="/(tabs)" />;
+  }
 
   return (
     <View style={styles.container}>
@@ -27,7 +23,7 @@ export default function RootIndexScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B1410',
     justifyContent: 'center',
     alignItems: 'center',
   },

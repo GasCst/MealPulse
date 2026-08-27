@@ -1,6 +1,6 @@
 // Web fallback for RevenueCatService
 export class RevenueCatService {
-  static async configure() {
+  static async configure(userId?: string) {
     return Promise.resolve();
   }
 
@@ -8,7 +8,7 @@ export class RevenueCatService {
     return Promise.resolve(null);
   }
 
-  static async purchasePlan() {
+  static async purchasePlan(planKey: 'weekly' | 'monthly' | 'yearly') {
     return Promise.resolve(false);
   }
 

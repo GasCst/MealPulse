@@ -312,8 +312,15 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const linkSubscription = Linking.addEventListener('url', handleDeepLink);
 
     return () => {
-      authListener.subscription.unsubscribe();
-      linkSubscription.remove();
+      try {
+        authListener?.subscription?.unsubscribe?.();
+      } catch {}
+      try {
+        linkSubscription?.remove?.();
+      } catch {}
+      try {
+        listener?.remove?.();
+      } catch {}
     };
   }, []);
 
