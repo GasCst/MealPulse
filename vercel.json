@@ -1,0 +1,22 @@
+{
+  "buildCommand": "npx expo export -p web",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/mealpulse.mobileconfig",
+      "headers": [
+        { "key": "Content-Type", "value": "application/x-apple-aspen-config" },
+        { "key": "Content-Disposition", "value": "attachment; filename=\"mealpulse.mobileconfig\"" }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json" }
+      ]
+    }
+  ]
+}

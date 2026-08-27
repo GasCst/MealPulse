@@ -16,27 +16,21 @@ export const unstable_settings = {
   anchor: 'index',
 };
 
-import mobileAds from 'react-native-google-mobile-ads';
 import { NotificationPromptModal } from '@/components/NotificationPromptModal';
+import { Platform } from 'react-native';
+import { AdMobService } from '@/services/adMobService';
 
 export default function RootLayout() {
   useEffect(() => {
-    // Safely initialize native SDKs without crashing startup thread
-    if (!isExpoGo) {
+    // Safely initialize native SDKs without crashing startup thread or web bundler
+    if (!isExpoGo && Platform.OS !== 'web') {
       try {
         RevenueCatService.configure();
       } catch (e) {
         console.warn('[RootLayout] RevenueCat init warning:', e);
       }
       try {
-        mobileAds().setRequestConfiguration({
-          testDeviceIdentifiers: ['EMULATOR', 'F3FCA862873FD255B71A17B00F6983A9'],
-        }).catch(() => {});
-        mobileAds().initialize().then(() => {
-          console.log('[RootLayout] Google Mobile Ads initialized.');
-        }).catch((err) => {
-          console.warn('[RootLayout] MobileAds init promise warning:', err);
-        });
+        AdMobService.initialize();
       } catch (e) {
         console.warn('[RootLayout] MobileAds init warning:', e);
       }

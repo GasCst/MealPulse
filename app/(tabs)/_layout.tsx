@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
+import { IOSInstallGuideModal } from '@/components/IOSInstallGuideModal';
 
 export default function TabLayout() {
   const { hasCompletedOnboarding, isLoaded } = useSubscription();
@@ -28,7 +29,9 @@ export default function TabLayout() {
   };
 
   return (
-    <Tabs
+    <>
+      <IOSInstallGuideModal />
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.lime,
@@ -130,6 +133,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </>
   );
 }
 
