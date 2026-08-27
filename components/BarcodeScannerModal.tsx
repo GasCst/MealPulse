@@ -8,11 +8,16 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLanguage } from '@/context/LanguageContext';
-import { DEMO_BARCODES } from '@/constants/demoBarcodes';
+import { useTheme } from '@/context/ThemeContext';
+import { useSubscription } from '@/context/SubscriptionContext';
+import { FoodDatabaseService, FoodItem } from '@/services/foodDatabaseService';
+import { UnitService, GRAMS_PER_OZ } from '@/services/unitService';
+import { AdBanner } from '@/components/AdBanner';
 
 interface BarcodeScannerModalProps {
   visible: boolean;
@@ -25,13 +30,17 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   onClose,
   onMealAdded,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { colors, isDarkMode } = useTheme();
+  const { unitSystem, isPro } = useSubscription();
   const [permission, requestPermission] = useCameraPermissions();
 
   const [barcode, setBarcode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [foundFood, setFoundFood] = useState<any | null>(null);
+  const [foundFood, setFoundFood] = useState<FoodItem | null>(null);
+  const [activeUnit, setActiveUnit] = useState<'g' | 'oz'>(() => (unitSystem === 'imperial' ? 'oz' : 'g'));
+  const [inputValue, setInputValue] = useState<string>('100');
   const [scanned, setScanned] = useState(false);
   const lastScannedCodeRef = useRef<string | null>(null);
 
@@ -41,6 +50,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       lastScannedCodeRef.current = null;
       setError(null);
       setFoundFood(null);
+      setInputValue('100');
       setBarcode('');
       if (!permission?.granted) {
         requestPermission();
@@ -48,40 +58,28 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     }
   }, [visible]);
 
-  const fetchBarcodeFromOpenFoodFacts = async (code: string) => {
-    if (!code.trim()) return;
+  const fetchBarcode = async (code: string) => {
+    const cleanCode = code.trim();
+    if (!cleanCode) return;
     setLoading(true);
     setError(null);
     setFoundFood(null);
 
     try {
-      const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code.trim()}.json`);
-      const data = await response.json();
-
-      if (data.status === 1 && data.product) {
-        const p = data.product;
-        const nutriments = p.nutriments || {};
-        
-        const foodObj = {
-          name: p.product_name_it || p.product_name || 'Alimento Scansionato',
-          brand: p.brands || 'Generico',
-          calories: Math.round(nutriments['energy-kcal_100g'] || nutriments['energy-kcal'] || 150),
-          protein: Math.round(nutriments.proteins_100g || nutriments.proteins || 0),
-          carbs: Math.round(nutriments.carbohydrates_100g || nutriments.carbohydrates || 0),
-          fat: Math.round(nutriments.fat_100g || nutriments.fat || 0),
-          serving: p.serving_size || '100g',
-        };
-
-        setFoundFood(foodObj);
-        // Fallback for demo sample barcodes when offline or API returns 404
-        if (DEMO_BARCODES[code]) {
-          setFoundFood(DEMO_BARCODES[code]);
+      const item = await FoodDatabaseService.fetchFoodByBarcode(cleanCode, language);
+      if (item) {
+        setFoundFood(item);
+        if (activeUnit === 'oz') {
+          const oz = ((item.weightG || 100) / GRAMS_PER_OZ).toFixed(1);
+          setInputValue(oz.endsWith('.0') ? oz.slice(0, -2) : oz);
         } else {
-          setError('Codice a barre non trovato nel database OpenFoodFacts. Prova a inserirlo manualmente.');
+          setInputValue(item.weightG?.toString() || '100');
         }
+      } else {
+        setError('Codice a barre non trovato nel database (3.3M alimenti). Prova a digitare il nome nella ricerca.');
       }
     } catch (e: any) {
-      setError('Errore di connessione al database alimenti. Riprova.');
+      setError('Errore di connessione durante la ricerca del codice a barre. Riprova.');
     } finally {
       setLoading(false);
     }
@@ -92,43 +90,86 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     setScanned(true);
     lastScannedCodeRef.current = data;
     setBarcode(data);
-    fetchBarcodeFromOpenFoodFacts(data);
+    fetchBarcode(data);
   };
 
   const handleConfirmAdd = () => {
     if (!foundFood) return;
+
+    const numVal = parseFloat(inputValue.replace(',', '.')) || 0;
+    const computedGrams = activeUnit === 'oz' ? Math.round(numVal * GRAMS_PER_OZ) : Math.round(numVal);
+    const safeGrams = Math.max(1, computedGrams);
+
+    const baseKcal = foundFood.baseCalories ?? foundFood.calories ?? 0;
+    const baseProtein = foundFood.baseProteinG ?? foundFood.proteinG ?? 0;
+    const baseCarbs = foundFood.baseCarbsG ?? foundFood.carbsG ?? 0;
+    const baseFat = foundFood.baseFatG ?? foundFood.fatG ?? 0;
+    const baseWeight = foundFood.baseWeightG || 100;
+
+    const recalculated = UnitService.recalculateMacros(
+      baseKcal,
+      baseProtein,
+      baseCarbs,
+      baseFat,
+      baseWeight,
+      safeGrams
+    );
+
+    const displayName = foundFood.brand
+      ? `${foundFood.name} (${foundFood.brand})`
+      : foundFood.name;
+
     onMealAdded({
-      name: `${foundFood.name} (${foundFood.brand})`,
-      calories: foundFood.calories,
-      protein: foundFood.protein,
-      carbs: foundFood.carbs,
-      fat: foundFood.fat,
+      name: displayName,
+      calories: recalculated.calories,
+      protein: recalculated.proteinG,
+      carbs: recalculated.carbsG,
+      fat: recalculated.fatG,
     });
+
     setBarcode('');
     setFoundFood(null);
     onClose();
   };
 
+  const numVal = parseFloat(inputValue.replace(',', '.')) || 0;
+  const currentGrams = activeUnit === 'oz' ? Math.max(0, numVal * GRAMS_PER_OZ) : Math.max(0, numVal);
+
+  const baseKcal = foundFood?.baseCalories ?? foundFood?.calories ?? 0;
+  const baseProtein = foundFood?.baseProteinG ?? foundFood?.proteinG ?? 0;
+  const baseCarbs = foundFood?.baseCarbsG ?? foundFood?.carbsG ?? 0;
+  const baseFat = foundFood?.baseFatG ?? foundFood?.fatG ?? 0;
+  const baseWeight = foundFood?.baseWeightG || 100;
+
+  const currentMacros = UnitService.recalculateMacros(
+    baseKcal,
+    baseProtein,
+    baseCarbs,
+    baseFat,
+    baseWeight,
+    currentGrams
+  );
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#111D17' : '#FFFFFF' }]}>
           {/* Header */}
           <View style={styles.headerRow}>
             <View style={styles.titleGroup}>
-              <Text style={{ fontSize: 22 }}>📷</Text>
+              <Text style={{ fontSize: 24 }}>🏷️</Text>
               <View>
-                <Text style={styles.headerTitle}>{t('barcode_title')}</Text>
-                <Text style={styles.headerSub}>{t('barcode_sub')}</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t('barcode_title', 'Scanner Barcode 🏷️')}</Text>
+                <Text style={styles.headerSub}>3.3M+ Prodotti Open Food Facts</Text>
               </View>
             </View>
 
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color="#64748B" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDarkMode ? '#1E2F26' : '#F1F5F9' }]}>
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* Live Camera Viewfinder Box */}
             <View style={styles.scannerBox}>
               {permission?.granted ? (
@@ -163,9 +204,9 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 </CameraView>
               ) : (
                 <View style={styles.noPermBox}>
-                  <Ionicons name="camera-outline" size={48} color="#BEF264" />
+                  <Ionicons name="camera-outline" size={44} color={colors.coral} />
                   <Text style={styles.noPermText}>Autorizza la fotocamera per scansionare i codici a barre</Text>
-                  <TouchableOpacity style={styles.grantPermBtn} onPress={requestPermission}>
+                  <TouchableOpacity style={[styles.grantPermBtn, { backgroundColor: colors.coral }]} onPress={requestPermission}>
                     <Text style={styles.grantPermBtnText}>Consenti Fotocamera 📷</Text>
                   </TouchableOpacity>
                 </View>
@@ -173,87 +214,146 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             </View>
 
             {/* Input EAN (Manual Fallback) */}
-            <Text style={styles.inputLabel}>Oppure Inserisci Codice EAN / Barcode Manualmente</Text>
-            <View style={styles.searchRow}>
+            <View style={styles.manualEanRow}>
               <TextInput
-                style={styles.input}
-                placeholder="es. 8000500003787"
-                placeholderTextColor="#94A3B8"
-                keyboardType="number-pad"
+                style={[styles.eanInput, { color: colors.textPrimary, borderColor: isDarkMode ? '#2E473A' : '#CBD5E1' }]}
+                placeholder="Oppure inserisci codice (es. 8000500310427)"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
                 value={barcode}
                 onChangeText={setBarcode}
+                onSubmitEditing={() => fetchBarcode(barcode)}
               />
               <TouchableOpacity
-                style={styles.scanBtn}
-                onPress={() => {
-                  setScanned(true);
-                  fetchBarcodeFromOpenFoodFacts(barcode);
-                }}
-                disabled={loading || !barcode.trim()}
+                style={[styles.searchEanBtn, { backgroundColor: colors.coral }]}
+                onPress={() => fetchBarcode(barcode)}
               >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#0F172A" />
-                ) : (
-                  <Text style={styles.scanBtnText}>Cerca 🔍</Text>
-                )}
+                <Ionicons name="search" size={18} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
-            {/* Demo Barcodes Helper */}
-            <View style={styles.demoBarcodesBox}>
-              <Text style={styles.demoTitle}>Codici Barcode Demo da Provare:</Text>
-              <View style={styles.demoRow}>
-                {['8000500003787', '8000300000000', '3017620422003'].map((code) => (
-                  <TouchableOpacity
-                    key={code}
-                    style={styles.demoChip}
-                    onPress={() => {
-                      setBarcode(code);
-                      setScanned(true);
-                      fetchBarcodeFromOpenFoodFacts(code);
-                    }}
-                  >
-                    <Text style={styles.demoChipText}>{code}</Text>
-                  </TouchableOpacity>
-                ))}
+            {/* Loading / Feedback */}
+            {loading && (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="small" color={colors.coral} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Interrogazione 3.3M+ alimenti Open Food Facts...
+                </Text>
               </View>
-            </View>
+            )}
 
             {error && (
               <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
+            {/* AdMob Advertisement Banner (Non-PRO users) */}
+            {!isPro && <AdBanner location="barcode_scanner" />}
+
+            {/* Scanned Product Card */}
             {foundFood && (
-              <View style={styles.resultCard}>
+              <View style={[styles.resultCard, { backgroundColor: isDarkMode ? '#192C22' : '#F8FAFC', borderColor: isDarkMode ? '#2C493A' : '#E2E8F0' }]}>
                 <View style={styles.resultHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.resultName}>{foundFood.name}</Text>
-                    <Text style={styles.resultBrand}>{foundFood.brand} • {foundFood.serving}</Text>
+                  {foundFood.imageUrl ? (
+                    <Image source={{ uri: foundFood.imageUrl }} style={styles.resultImage} resizeMode="contain" />
+                  ) : (
+                    <View style={styles.resultEmojiBox}>
+                      <Text style={{ fontSize: 32 }}>{foundFood.emoji || '🍽️'}</Text>
+                    </View>
+                  )}
+
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.resultName, { color: colors.textPrimary }]} numberOfLines={2}>
+                      {foundFood.name}
+                    </Text>
+                    {foundFood.brand ? (
+                      <Text style={styles.resultBrand}>{foundFood.brand}</Text>
+                    ) : null}
+                    <Text style={[styles.resultKcal, { color: colors.coral }]}>
+                      {currentMacros.calories} kcal
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                      Base: {baseKcal} kcal / {baseWeight}g
+                    </Text>
                   </View>
-                  <Text style={styles.resultKcal}>{foundFood.calories} kcal</Text>
                 </View>
 
+                {/* Unit Switch & Quantity Input */}
+                <View style={styles.portionRow}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      style={[
+                        styles.unitSmallBtn,
+                        activeUnit === 'g' && { backgroundColor: colors.coral },
+                      ]}
+                      onPress={() => {
+                        if (activeUnit !== 'g') {
+                          setActiveUnit('g');
+                          setInputValue(String(Math.round(currentGrams)));
+                        }
+                      }}
+                    >
+                      <Text style={[styles.unitSmallText, activeUnit === 'g' && { color: '#FFFFFF', fontWeight: '800' }]}>g</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.unitSmallBtn,
+                        activeUnit === 'oz' && { backgroundColor: colors.coral },
+                      ]}
+                      onPress={() => {
+                        if (activeUnit !== 'oz') {
+                          setActiveUnit('oz');
+                          const oz = (currentGrams / GRAMS_PER_OZ).toFixed(1);
+                          setInputValue(oz.endsWith('.0') ? oz.slice(0, -2) : oz);
+                        }
+                      }}
+                    >
+                      <Text style={[styles.unitSmallText, activeUnit === 'oz' && { color: '#FFFFFF', fontWeight: '800' }]}>oz</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.gramsInputBox}>
+                    <TextInput
+                      style={[styles.gramsInput, { color: colors.textPrimary, borderColor: isDarkMode ? '#2E473A' : '#CBD5E1' }]}
+                      keyboardType="decimal-pad"
+                      value={inputValue}
+                      onChangeText={setInputValue}
+                    />
+                    <Text style={[styles.gramsUnit, { color: colors.textSecondary }]}>{activeUnit}</Text>
+                  </View>
+                </View>
+
+                {/* Macro Pills */}
                 <View style={styles.macroRow}>
-                  <View style={styles.macroBadge}>
-                    <Text style={styles.macroVal}>{foundFood.protein}g</Text>
+                  <View style={[styles.macroBadge, { backgroundColor: '#FEE2E2' }]}>
+                    <Text style={[styles.macroVal, { color: '#DC2626' }]}>
+                      {currentMacros.proteinG}g
+                    </Text>
                     <Text style={styles.macroLabel}>Proteine</Text>
                   </View>
 
-                  <View style={styles.macroBadge}>
-                    <Text style={styles.macroVal}>{foundFood.carbs}g</Text>
+                  <View style={[styles.macroBadge, { backgroundColor: '#FEF3C7' }]}>
+                    <Text style={[styles.macroVal, { color: '#D97706' }]}>
+                      {currentMacros.carbsG}g
+                    </Text>
                     <Text style={styles.macroLabel}>Carboidrati</Text>
                   </View>
 
-                  <View style={styles.macroBadge}>
-                    <Text style={styles.macroVal}>{foundFood.fat}g</Text>
+                  <View style={[styles.macroBadge, { backgroundColor: '#E0F2FE' }]}>
+                    <Text style={[styles.macroVal, { color: '#0284C7' }]}>
+                      {currentMacros.fatG}g
+                    </Text>
                     <Text style={styles.macroLabel}>Grassi</Text>
                   </View>
                 </View>
 
-                <TouchableOpacity style={styles.addFoodBtn} onPress={handleConfirmAdd}>
+                <TouchableOpacity
+                  style={[styles.addFoodBtn, { backgroundColor: colors.coral }]}
+                  onPress={handleConfirmAdd}
+                  activeOpacity={0.85}
+                >
                   <Text style={styles.addFoodBtnText}>Aggiungi al Diario ➕</Text>
                 </TouchableOpacity>
               </View>
@@ -272,9 +372,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: '90%',
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -294,24 +393,23 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#0F172A',
   },
   headerSub: {
     fontSize: 11,
-    color: '#64748B',
+    fontWeight: '700',
+    color: '#10B981',
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
   },
   scannerBox: {
     backgroundColor: '#0F172A',
     borderRadius: 20,
-    height: 200,
+    height: 190,
     overflow: 'hidden',
     marginBottom: 16,
     borderWidth: 2,
@@ -327,7 +425,7 @@ const styles = StyleSheet.create({
   },
   viewfinderFrame: {
     width: 220,
-    height: 100,
+    height: 90,
     borderWidth: 2,
     borderColor: '#BEF264',
     borderRadius: 12,
@@ -339,15 +437,12 @@ const styles = StyleSheet.create({
     width: '90%',
     height: 2,
     backgroundColor: '#EF4444',
-    shadowColor: '#EF4444',
-    shadowRadius: 4,
-    shadowOpacity: 0.8,
   },
   scannerPrompt: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
-    marginTop: 10,
+    marginTop: 8,
     backgroundColor: 'rgba(15, 23, 42, 0.75)',
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -358,8 +453,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#BEF264',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 10,
     marginTop: 6,
   },
@@ -382,157 +477,171 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   grantPermBtn: {
-    backgroundColor: '#BEF264',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
     marginTop: 4,
   },
   grantPermBtnText: {
-    color: '#0F172A',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
   },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 6,
-  },
-  searchRow: {
+  manualEanRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
+    gap: 8,
+    marginBottom: 12,
   },
-  input: {
+  eanInput: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#0F172A',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
     fontWeight: '700',
   },
-  scanBtn: {
-    backgroundColor: '#BEF264',
-    paddingHorizontal: 20,
-    borderRadius: 14,
+  searchEanBtn: {
+    paddingHorizontal: 14,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scanBtnText: {
-    color: '#0F172A',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  demoBarcodesBox: {
-    marginBottom: 14,
-  },
-  demoTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-    marginBottom: 6,
-  },
-  demoRow: {
+  loadingBox: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
+    padding: 10,
+    marginBottom: 10,
   },
-  demoChip: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  demoChipText: {
-    fontSize: 11,
-    color: '#0F172A',
-    fontWeight: '700',
+  loadingText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
+    backgroundColor: '#FEE2E2',
     padding: 12,
     borderRadius: 12,
     marginBottom: 14,
   },
   errorText: {
-    color: '#B91C1C',
+    color: '#DC2626',
     fontSize: 12,
+    fontWeight: '700',
     flex: 1,
-    fontWeight: '600',
   },
   resultCard: {
-    backgroundColor: '#F7FEE7',
-    borderWidth: 1.5,
-    borderColor: '#BEF264',
-    borderRadius: 16,
     padding: 16,
-    marginTop: 8,
+    borderRadius: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    gap: 12,
   },
   resultHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+  },
+  resultImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+  },
+  unitSmallBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unitSmallText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  resultEmojiBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   resultName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
   },
   resultBrand: {
     fontSize: 12,
-    color: '#475569',
-    marginTop: 2,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 1,
   },
   resultKcal: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#84CC16',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  portionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+  },
+  portionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  gramsInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  gramsInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    fontSize: 14,
+    fontWeight: '800',
+    minWidth: 60,
+    textAlign: 'center',
+  },
+  gramsUnit: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   macroRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
+    gap: 8,
   },
   macroBadge: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
     paddingVertical: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   macroVal: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#0F172A',
   },
   macroLabel: {
     fontSize: 10,
     color: '#64748B',
+    fontWeight: '700',
     marginTop: 2,
   },
   addFoodBtn: {
-    backgroundColor: '#0F172A',
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 13,
+    borderRadius: 16,
     alignItems: 'center',
+    marginTop: 4,
   },
   addFoodBtnText: {
-    color: '#BEF264',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
   },

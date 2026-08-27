@@ -37,10 +37,24 @@ create table if not exists public.meal_logs (
   logged_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- 4. Create Daily Activity & Burned Calories Table (HealthKit / Health Connect sync)
+create table if not exists public.daily_activity_logs (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  log_date date not null,
+  active_calories numeric(10, 2) default 0,
+  steps integer default 0,
+  exercise_minutes integer default 0,
+  source text default 'health_connect',
+  synced_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint unique_user_activity_date unique (user_id, log_date)
+);
+
 -- Enable Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.meal_logs enable row level security;
+alter table public.daily_activity_logs enable row level security;
 
 -- Drop previous policies to avoid duplicates
 drop policy if exists "Users can view own profile" on public.profiles;
@@ -57,6 +71,10 @@ create policy "Users can insert own subscriptions" on public.subscriptions for i
 
 create policy "Users can view own meal logs" on public.meal_logs for select using (auth.uid() = user_id);
 create policy "Users can insert own meal logs" on public.meal_logs for insert with check (auth.uid() = user_id);
+
+create policy "Users can view own activity logs" on public.daily_activity_logs for select using (auth.uid() = user_id);
+create policy "Users can insert own activity logs" on public.daily_activity_logs for insert with check (auth.uid() = user_id);
+create policy "Users can update own activity logs" on public.daily_activity_logs for update using (auth.uid() = user_id);
 
 -- 4. Automatic Database Trigger: Inserts row into public.profiles on auth.users signup
 create or replace function public.handle_new_user()

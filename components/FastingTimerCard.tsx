@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  Easing,
+  FadeInUp,
+} from 'react-native-reanimated';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService } from '@/services/supabaseService';
 
 interface FastingTimerCardProps {
@@ -18,6 +28,7 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
 }) => {
   const { isPro, user } = useSubscription();
   const { t } = useLanguage();
+  const { colors, isDarkMode } = useTheme();
 
   const [protocol, setProtocol] = useState<'16:8' | '14:10' | '18:6'>('16:8');
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -26,12 +37,23 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
 
   const isUnlockedViaAd = externalUnlocked || internalUnlocked;
 
-  const handleUnlockViaAd = () => {
-    setInternalUnlocked(true);
-    if (onUnlockViaAd) {
-      onUnlockViaAd();
+  const pulseScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (isRunning) {
+      pulseScale.value = withRepeat(
+        withTiming(1.04, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    } else {
+      pulseScale.value = withTiming(1, { duration: 300 });
     }
-  };
+  }, [isRunning]);
+
+  const clockPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
 
   const totalSeconds = (protocol === '16:8' ? 16 : protocol === '14:10' ? 14 : 18) * 3600;
 
@@ -49,7 +71,18 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
     };
   }, [isRunning, secondsLeft]);
 
+  const triggerHaptic = (type: 'light' | 'medium' | 'success' = 'light') => {
+    try {
+      if (Platform.OS !== 'web') {
+        if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {}
+  };
+
   const handleSelectProtocol = (p: '16:8' | '14:10' | '18:6') => {
+    triggerHaptic('light');
     setProtocol(p);
     const hrs = p === '16:8' ? 16 : p === '14:10' ? 14 : 18;
     setSecondsLeft(hrs * 3600);
@@ -58,10 +91,12 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
 
   const toggleTimer = async () => {
     if (!isPro && !isUnlockedViaAd) {
+      triggerHaptic('medium');
       onUnlockPro();
       return;
     }
     const nextRunning = !isRunning;
+    triggerHaptic(nextRunning ? 'success' : 'medium');
     setIsRunning(nextRunning);
     if (nextRunning && user?.id) {
       const hrs = protocol === '16:8' ? 16 : protocol === '14:10' ? 14 : 18;
@@ -76,6 +111,7 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
   };
 
   const resetTimer = () => {
+    triggerHaptic('light');
     setIsRunning(false);
     setSecondsLeft(totalSeconds);
   };
@@ -90,85 +126,137 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
   const progressPercent = Math.round(((totalSeconds - secondsLeft) / totalSeconds) * 100);
 
   return (
-    <View style={styles.card}>
+    <Animated.View
+      entering={FadeInUp.delay(150).duration(500)}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.cardBg,
+          borderColor: colors.cardBorder,
+          borderWidth: 1,
+        },
+      ]}
+    >
       <View style={styles.headerRow}>
         <View style={styles.titleGroup}>
-          <View style={styles.iconCircle}>
+          <View style={[styles.iconCircle, { backgroundColor: colors.limeGlow }]}>
             <Text style={{ fontSize: 18 }}>⌛</Text>
           </View>
           <View>
-            <Text style={styles.title}>{t('fasting_timer_title')}</Text>
-            <Text style={styles.sub}>{t('fasting_timer_sub')}</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('fasting_timer_title')}</Text>
+            <Text style={[styles.sub, { color: colors.textSecondary }]}>{t('fasting_timer_sub')}</Text>
           </View>
         </View>
 
         {!isPro && !isUnlockedViaAd ? (
-          <TouchableOpacity style={styles.proBadge} onPress={onUnlockPro}>
+          <TouchableOpacity style={[styles.proBadge, { backgroundColor: colors.lime }]} onPress={onUnlockPro}>
             <Ionicons name="lock-closed" size={12} color="#0F172A" />
-            <Text style={styles.proBadgeText}>PRO FEATURE</Text>
+            <Text style={styles.proBadgeText}>{t('pro_feature')}</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={styles.statusBadge}>{isRunning ? '⚡ FASTING' : '⏸ PAUSED'}</Text>
+          <Text
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor: isRunning ? colors.limeGlow : colors.inputBg,
+                color: isRunning ? colors.lime : colors.textSecondary,
+              },
+            ]}
+          >
+            {isRunning ? t('fasting_status') : t('paused_status')}
+          </Text>
         )}
       </View>
 
       {/* Protocol Selector */}
       <View style={styles.protocolRow}>
-        {(['16:8', '14:10', '18:6'] as const).map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[styles.protocolChip, protocol === p && styles.selectedProtocolChip]}
-            onPress={() => handleSelectProtocol(p)}
-          >
-            <Text style={[styles.protocolText, protocol === p && styles.selectedProtocolText]}>
-              {p}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {(['16:8', '14:10', '18:6'] as const).map((p) => {
+          const isSelected = protocol === p;
+          return (
+            <TouchableOpacity
+              key={p}
+              style={[
+                styles.protocolChip,
+                { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                isSelected && {
+                  backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1',
+                  borderColor: colors.lime,
+                  borderWidth: 1.5,
+                },
+              ]}
+              onPress={() => handleSelectProtocol(p)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.protocolText,
+                  { color: isSelected ? colors.lime : colors.textSecondary },
+                  isSelected && { fontWeight: '900' },
+                ]}
+              >
+                {p}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Clock Display */}
-      <View style={styles.clockContainer}>
-        <Text style={styles.clockText}>{formatTime(secondsLeft)}</Text>
-        <Text style={styles.clockSub}>
-          {isRunning ? `Fasting progress: ${progressPercent}%` : 'Tap Start to begin your fast'}
+      <Animated.View
+        style={[
+          styles.clockContainer,
+          { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+          isRunning && { borderColor: colors.lime, borderWidth: 1.5 },
+          clockPulseStyle,
+        ]}
+      >
+        <Text style={[styles.clockText, { color: isRunning ? colors.lime : colors.textPrimary }]}>
+          {formatTime(secondsLeft)}
         </Text>
-      </View>
+        <Text style={[styles.clockSub, { color: colors.textSecondary }]}>
+          {isRunning ? `${t('fasting_progress')}: ${progressPercent}%` : t('tap_start_fast')}
+        </Text>
+      </Animated.View>
 
       {/* Controls */}
       <View style={styles.controlsRow}>
         <TouchableOpacity
-          style={[styles.mainControlBtn, isRunning ? styles.pauseBtn : styles.startBtn]}
+          style={[
+            styles.mainControlBtn,
+            isRunning ? styles.pauseBtn : [styles.startBtn, { backgroundColor: colors.lime }],
+          ]}
           onPress={toggleTimer}
           activeOpacity={0.85}
         >
           <Ionicons name={isRunning ? 'pause' : 'play'} size={18} color={isRunning ? '#FFFFFF' : '#0F172A'} />
-          <Text style={[styles.mainControlText, isRunning && { color: '#FFFFFF' }]}>
-            {isRunning ? 'Pause Fast' : 'Start Fasting Timer'}
+          <Text style={[styles.mainControlText, isRunning ? { color: '#FFFFFF' } : { color: '#0F172A' }]}>
+            {isRunning ? t('pause_fast') : t('start_fast')}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.resetBtn} onPress={resetTimer}>
-          <Ionicons name="refresh" size={18} color="#64748B" />
+        <TouchableOpacity
+          style={[styles.resetBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
+          onPress={resetTimer}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="refresh" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    marginHorizontal: 16,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: 'row',
@@ -185,24 +273,21 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#F7FEE7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '900',
   },
   sub: {
     fontSize: 11,
-    color: '#64748B',
+    marginTop: 1,
   },
   proBadge: {
-    backgroundColor: '#BEF264',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -213,13 +298,11 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   statusBadge: {
-    backgroundColor: '#F1F5F9',
-    color: '#334155',
     fontSize: 11,
-    fontWeight: '800',
-    paddingHorizontal: 8,
+    fontWeight: '900',
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   protocolRow: {
     flexDirection: 'row',
@@ -228,43 +311,30 @@ const styles = StyleSheet.create({
   },
   protocolChip: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingVertical: 9,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  selectedProtocolChip: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
-  },
   protocolText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#64748B',
-  },
-  selectedProtocolText: {
-    color: '#BEF264',
   },
   clockContainer: {
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    borderRadius: 18,
     paddingVertical: 18,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
     marginBottom: 14,
   },
   clockText: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '900',
-    color: '#0F172A',
     letterSpacing: 2,
   },
   clockSub: {
     fontSize: 12,
-    color: '#64748B',
+    fontWeight: '700',
     marginTop: 4,
   },
   controlsRow: {
@@ -273,29 +343,25 @@ const styles = StyleSheet.create({
   },
   mainControlBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
-  startBtn: {
-    backgroundColor: '#BEF264',
-  },
+  startBtn: {},
   pauseBtn: {
     backgroundColor: '#EF4444',
   },
   mainControlText: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '900',
   },
   resetBtn: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 14,
-    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },

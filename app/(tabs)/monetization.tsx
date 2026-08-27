@@ -40,12 +40,35 @@ export default function MonetizationScreen() {
     setAutoPortionEstimation,
     setMultiItemDetection,
     setSaveScansToCloud,
+    isHealthSyncEnabled,
+    includeBurnedInBudget,
+    burnedCaloriesToday,
+    stepsToday,
+    lastHealthSyncTime,
+    healthSyncStatus,
+    setHealthSyncEnabled,
+    setIncludeBurnedInBudget,
+    triggerHealthSync,
   } = useSubscription();
   
   const { t } = useLanguage();
   const { isDarkMode } = useTheme();
 
   const [showSpinWheel, setShowSpinWheel] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(599); // 09:59 countdown
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 599));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatCountdown = (totalSec: number) => {
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   // Local theme mapped from the redesign mockup
   const theme = isDarkMode ? {
@@ -156,6 +179,17 @@ export default function MonetizationScreen() {
   const carbs = biometrics?.targetCarbs || 195;
   const fat = biometrics?.targetFat || 58;
 
+  const handleHealthToggle = async () => {
+    const nextVal = !isHealthSyncEnabled;
+    const success = await setHealthSyncEnabled(nextVal);
+    if (!success && nextVal) {
+      Alert.alert(
+        t('health_permission_title'),
+        t('health_permission_desc')
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -164,10 +198,10 @@ export default function MonetizationScreen() {
         <View style={styles.header}>
           <View style={styles.eyebrow}>
             <View style={[styles.eyebrowLine, { backgroundColor: theme.textMuted }]} />
-            <Text style={[styles.eyebrowText, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>MENU PRO</Text>
+            <Text style={[styles.eyebrowText, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>{t('menu_pro_eyebrow')}</Text>
           </View>
-          <Text style={[styles.pageTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>Account & Settings</Text>
-          <Text style={[styles.pageSub, { color: theme.textSoft }]}>Your profile, scan engine, and daily targets.</Text>
+          <Text style={[styles.pageTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>{t('account_settings_title')}</Text>
+          <Text style={[styles.pageSub, { color: theme.textSoft }]}>{t('account_settings_sub')}</Text>
         </View>
 
         {/* Profile Card */}
@@ -200,27 +234,80 @@ export default function MonetizationScreen() {
           </View>
         </View>
 
-        {/* Special 80% OFF Offer Banner for Non-PRO users */}
+        {/* Special 80% OFF Urgency Jackpot Offer Card for Non-PRO users */}
         {!isPro && (
-          <TouchableOpacity
-            style={[styles.promoBannerCard, { backgroundColor: isDarkMode ? '#1E2510' : '#F7FEE7', borderColor: theme.lime }]}
-            onPress={() => setShowSpinWheel(true)}
-            activeOpacity={0.85}
+          <View
+            style={[
+              styles.jackpotOfferCard,
+              {
+                backgroundColor: isDarkMode ? '#171D0E' : '#F7FEE7',
+                borderColor: theme.lime,
+              },
+            ]}
           >
-            <View style={styles.promoBannerRow}>
-              <Text style={{ fontSize: 24 }}>⚡</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.promoBadgeText, { color: theme.limeDeep, fontFamily: fontFamilyMono }]}>SPECIAL OFFER ACTIVE</Text>
-                <Text style={[styles.promoBannerTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>
-                  Claim 80% OFF Jackpot Deal 🎉
-                </Text>
-                <Text style={[styles.promoBannerSub, { color: theme.textMuted }]}>
-                  Get MealPulse PRO for 2,99 €/mo before the discount expires!
+            {/* Top Badges & Live Countdown Timer Row */}
+            <View style={styles.jackpotHeaderRow}>
+              <View style={[styles.jackpotBadge, { backgroundColor: theme.lime }]}>
+                <Ionicons name="flame" size={13} color="#14181B" />
+                <Text style={[styles.jackpotBadgeText, { fontFamily: fontFamilyMono }]}>
+                  80% OFF • FLASH DEAL
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.limeDeep} />
+
+              <View
+                style={[
+                  styles.timerBox,
+                  {
+                    backgroundColor: isDarkMode ? '#232C13' : '#ECFCCB',
+                    borderColor: theme.limeDeep,
+                  },
+                ]}
+              >
+                <Ionicons name="timer-outline" size={14} color={theme.limeDeep} />
+                <Text style={[styles.timerLabel, { color: theme.limeDeep, fontFamily: fontFamilyMono }]}>
+                  {formatCountdown(countdownSeconds)}
+                </Text>
+              </View>
             </View>
-          </TouchableOpacity>
+
+            {/* Headline & Urgency Alert Box */}
+            <View style={styles.jackpotContentBox}>
+              <Text style={[styles.jackpotTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>
+                {t('offer_80_title')}
+              </Text>
+
+              <View
+                style={[
+                  styles.urgencyAlertBox,
+                  {
+                    backgroundColor: isDarkMode ? 'rgba(255, 106, 69, 0.15)' : '#FFF1EE',
+                    borderColor: theme.coral,
+                  },
+                ]}
+              >
+                <Ionicons name="alert-circle" size={16} color={theme.coral} />
+                <Text style={[styles.urgencyAlertText, { color: theme.coral, fontFamily: fontFamilyMono }]}>
+                  {t('offer_80_urgency')}
+                </Text>
+              </View>
+
+              <Text style={[styles.jackpotSub, { color: theme.textSoft }]}>
+                {t('offer_80_sub')}
+              </Text>
+            </View>
+
+            {/* Interactive CTA to Spin & Claim */}
+            <TouchableOpacity
+              style={[styles.jackpotCtaBtn, { backgroundColor: theme.lime }]}
+              onPress={() => setShowSpinWheel(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.jackpotCtaText, { fontFamily: fontFamilyDisplay }]}>
+                {t('spin_and_claim_80')}
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="#14181B" />
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Vision PRO Upsell (or Active status) */}
@@ -229,34 +316,34 @@ export default function MonetizationScreen() {
           
           <View style={styles.visionTag}>
             <View style={[styles.dot, { backgroundColor: theme.lime, shadowColor: theme.lime }]} />
-            <Text style={[styles.visionTagText, { color: theme.lime, fontFamily: fontFamilyMono }]}>AI Vision Engine</Text>
+            <Text style={[styles.visionTagText, { color: theme.lime, fontFamily: fontFamilyMono }]}>{t('ai_vision_engine')}</Text>
           </View>
           
           <Text style={[styles.visionTitle, { fontFamily: fontFamilyDisplay }]}>
-            {isPro ? "Vision PRO Active" : "Unlock Vision PRO"}
+            {isPro ? t('vision_pro_active') : t('unlock_vision_pro')}
           </Text>
           <Text style={styles.visionDesc}>
-            {isPro ? "Sharper recognition active. You have unlimited scans, multi-item detection, and instant macro breakdowns." : "Sharper recognition on every plate — unlimited scans, multi-item detection, and instant macro breakdowns."}
+            {isPro ? t('vision_pro_desc_active') : t('vision_pro_desc_inactive')}
           </Text>
           
           <View style={styles.visionFeats}>
             <View style={styles.visionFeatRow}>
               <View style={styles.visionFeatIco}><Ionicons name="checkmark" size={14} color={theme.lime} /></View>
-              <Text style={styles.visionFeatText}>Unlimited AI photo scans</Text>
+              <Text style={styles.visionFeatText}>{t('feat_unlimited_scans')}</Text>
             </View>
             <View style={styles.visionFeatRow}>
               <View style={styles.visionFeatIco}><Ionicons name="checkmark" size={14} color={theme.lime} /></View>
-              <Text style={styles.visionFeatText}>Multi-item plate detection</Text>
+              <Text style={styles.visionFeatText}>{t('feat_multi_item')}</Text>
             </View>
             <View style={styles.visionFeatRow}>
               <View style={styles.visionFeatIco}><Ionicons name="checkmark" size={14} color={theme.lime} /></View>
-              <Text style={styles.visionFeatText}>Auto portion-size math</Text>
+              <Text style={styles.visionFeatText}>{t('feat_portion_math')}</Text>
             </View>
           </View>
           
           {!isPro && (
             <TouchableOpacity style={[styles.cta, { backgroundColor: theme.lime }]} onPress={() => openPaywall('settings_tab')} activeOpacity={0.85}>
-              <Text style={[styles.ctaText, { fontFamily: fontFamilyDisplay }]}>Activate Vision PRO</Text>
+              <Text style={[styles.ctaText, { fontFamily: fontFamilyDisplay }]}>{t('activate_vision_pro')}</Text>
               <Ionicons name="arrow-forward" size={16} color="#14181B" />
             </TouchableOpacity>
           )}
@@ -264,8 +351,8 @@ export default function MonetizationScreen() {
 
         {/* AI Recognition Settings */}
         <View style={styles.sectionHead}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>AI Recognition</Text>
-          <Text style={[styles.sectionNote, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>SCAN ENGINE</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>{t('ai_recognition_title')}</Text>
+          <Text style={[styles.sectionNote, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>{t('scan_engine_note')}</Text>
         </View>
 
         <View style={styles.stack}>
@@ -282,8 +369,8 @@ export default function MonetizationScreen() {
                 <Ionicons name="scan-outline" size={18} color="#5B6B1E" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>Scan Accuracy</Text>
-                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>Balanced = fast + reliable</Text>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('scan_accuracy_label')}</Text>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{t('scan_accuracy_help')}</Text>
               </View>
             </View>
             
@@ -303,11 +390,10 @@ export default function MonetizationScreen() {
               ))}
             </View>
 
-            {/* TODO: Hook this up to real average confidence telemetry once available */}
             <View style={[styles.confBar, { backgroundColor: isDarkMode ? '#2C343A' : '#EEEDE3' }]}>
               <View style={[styles.confFill, { backgroundColor: theme.limeDeep, width: '82%' }]} />
             </View>
-            <Text style={[styles.rowHelp, { color: theme.textMuted, marginTop: 6 }]}>Avg. confidence score: 82%</Text>
+            <Text style={[styles.rowHelp, { color: theme.textMuted, marginTop: 6 }]}>Avg. accuracy: 82%</Text>
           </View>
 
           {/* Auto Portion */}
@@ -317,8 +403,8 @@ export default function MonetizationScreen() {
                 <Ionicons name="resize-outline" size={18} color="#D9522E" />
               </View>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>Auto Portion Estimation</Text>
-                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>Sizes food from photo depth cues</Text>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('auto_portion_label')}</Text>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{t('auto_portion_help')}</Text>
               </View>
               <CustomToggle isOn={autoPortionEstimation} onToggle={() => setAutoPortionEstimation(!autoPortionEstimation)} />
             </View>
@@ -331,8 +417,8 @@ export default function MonetizationScreen() {
                 <Ionicons name="grid-outline" size={18} color="#3A6FCC" />
               </View>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>Multi-Item Detection</Text>
-                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>Identify every item on the plate</Text>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('multi_item_label')}</Text>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{t('multi_item_help')}</Text>
               </View>
               <CustomToggle isOn={multiItemDetection} onToggle={() => setMultiItemDetection(!multiItemDetection)} />
             </View>
@@ -345,8 +431,8 @@ export default function MonetizationScreen() {
                 <Ionicons name="cloud-upload-outline" size={18} color="#7B8072" />
               </View>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>Save Scans to Cloud</Text>
-                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{user ? "Syncs across your devices" : "Sign in required"}</Text>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('save_cloud_label')}</Text>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{user ? t('save_cloud_help_on') : t('save_cloud_help_off')}</Text>
               </View>
               <CustomToggle isOn={user ? saveScansToCloud : false} onToggle={handleCloudToggle} />
             </View>
@@ -354,10 +440,71 @@ export default function MonetizationScreen() {
 
         </View>
 
+        {/* Health & Wearables Synchronization Section */}
+        <View style={styles.sectionHead}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>{t('health_sync_section_title')}</Text>
+          <Text style={[styles.sectionNote, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>{Platform.OS === 'ios' ? 'APPLE HEALTHKIT' : 'GOOGLE HEALTH CONNECT'}</Text>
+        </View>
+
+        <View style={styles.stack}>
+          {/* Health Sync Switch */}
+          <View style={[styles.rowCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+            <View style={styles.rowTop}>
+              <View style={[styles.rowIco, { backgroundColor: isDarkMode ? '#3A141A' : '#FFEBEF' }]}>
+                <Ionicons name="heart" size={18} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('health_sync_toggle_label')}</Text>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>
+                  {isHealthSyncEnabled ? t('health_sync_connected_help') : t('health_sync_disconnected_help')}
+                </Text>
+              </View>
+              <CustomToggle isOn={isHealthSyncEnabled} onToggle={handleHealthToggle} />
+            </View>
+
+            {isHealthSyncEnabled && (
+              <View style={[styles.healthSyncStatusRow, { borderTopColor: theme.cardBorder }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.healthSyncStatusText, { color: theme.textSoft }]}>
+                    🔥 {burnedCaloriesToday} kcal • 👟 {stepsToday.toLocaleString()} {t('steps_unit')}
+                  </Text>
+                  {lastHealthSyncTime && (
+                    <Text style={[styles.healthLastSyncText, { color: theme.textMuted }]}>
+                      {t('last_synced')}: {new Date(lastHealthSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={[styles.syncNowBtn, { backgroundColor: isDarkMode ? '#1F382B' : '#E8F7D0' }]}
+                  onPress={() => triggerHealthSync()}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name={healthSyncStatus === 'syncing' ? 'sync' : 'refresh'} size={14} color={theme.limeDeep} />
+                  <Text style={[styles.syncNowBtnText, { color: theme.limeDeep }]}>{healthSyncStatus === 'syncing' ? '...' : t('sync_now')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Include in Daily Budget Switch */}
+          <View style={[styles.rowCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+            <View style={styles.rowTop}>
+              <View style={[styles.rowIco, { backgroundColor: isDarkMode ? '#3A2018' : '#FFE7DE' }]}>
+                <Ionicons name="calculator-outline" size={18} color="#FF6A45" />
+              </View>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('include_burned_budget_label')}</Text>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{t('include_burned_budget_help')}</Text>
+              </View>
+              <CustomToggle isOn={includeBurnedInBudget} onToggle={() => setIncludeBurnedInBudget(!includeBurnedInBudget)} />
+            </View>
+          </View>
+        </View>
+
         {/* Preferences & Goals Section */}
         <View style={styles.sectionHead}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>Preferences & Goals</Text>
-          <Text style={[styles.sectionNote, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>DAILY TARGETS</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>{t('preferences_goals_title')}</Text>
+          <Text style={[styles.sectionNote, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>{t('daily_targets_note')}</Text>
         </View>
 
         <View style={styles.stack}>
@@ -368,15 +515,15 @@ export default function MonetizationScreen() {
                 <Ionicons name="flame-outline" size={18} color="#E8632F" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>Daily Calorie Target</Text>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('daily_calorie_target')}</Text>
               </View>
-              <Text style={[styles.rowVal, { color: theme.textPrimary, fontFamily: fontFamilyMono }]}>{targetCalories} kcal</Text>
+              <Text style={[styles.rowVal, { color: theme.textPrimary, fontFamily: fontFamilyMono }]}>{targetCalories} {t('kcal')}</Text>
             </View>
             
             <View style={styles.macroRow}>
-              <MacroChip label="Protein" value={protein} progress={(protein/200)*100} color={theme.coral} />
-              <MacroChip label="Carbs" value={carbs} progress={(carbs/300)*100} color={theme.blue} />
-              <MacroChip label="Fat" value={fat} progress={(fat/100)*100} color={theme.limeDeep} />
+              <MacroChip label={t('protein_left')} value={protein} progress={(protein/200)*100} color={theme.coral} />
+              <MacroChip label={t('carb_left')} value={carbs} progress={(carbs/300)*100} color={theme.blue} />
+              <MacroChip label={t('fat_left')} value={fat} progress={(fat/100)*100} color={theme.limeDeep} />
             </View>
           </View>
 
@@ -386,7 +533,7 @@ export default function MonetizationScreen() {
                 <Ionicons name="water-outline" size={18} color="#3A8DFF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>Daily Water Target</Text>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('daily_water_target')}</Text>
               </View>
               <Text style={[styles.rowVal, { color: theme.textPrimary, fontFamily: fontFamilyMono }]}>{waterTarget} ml</Text>
             </View>
@@ -398,8 +545,8 @@ export default function MonetizationScreen() {
                 <Ionicons name="restaurant-outline" size={18} color="#7B8072" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>Dietary Profile</Text>
-                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>Helps AI disambiguate similar foods</Text>
+                <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('dietary_profile')}</Text>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{t('dietary_profile_help')}</Text>
               </View>
               <Text style={[styles.rowVal, { color: theme.textMuted, fontWeight: '500' }]}>{biometrics?.dietPreference || 'Omnivore'} ›</Text>
             </View>
@@ -415,7 +562,7 @@ export default function MonetizationScreen() {
                   <Ionicons name="log-out-outline" size={18} color="#EF4444" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowLabel, { color: '#EF4444' }]}>Sign Out</Text>
+                  <Text style={[styles.rowLabel, { color: '#EF4444' }]}>{t('sign_out')}</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -427,7 +574,7 @@ export default function MonetizationScreen() {
         <View style={styles.dividerNote}>
           <Ionicons name="lock-closed" size={14} color={theme.textMuted} style={styles.lockIcon} />
           <Text style={[styles.dividerNoteText, { color: theme.textMuted }]}>
-            Photos are processed on-device where possible, then discarded after scanning.
+            {t('privacy_note_text')}
           </Text>
         </View>
 
@@ -750,6 +897,88 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     flex: 1,
   },
+  jackpotOfferCard: {
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 1.5,
+    marginBottom: 20,
+    gap: 12,
+  },
+  jackpotHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  jackpotBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  jackpotBadgeText: {
+    color: '#14181B',
+    fontSize: 10.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  timerBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  timerLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  jackpotContentBox: {
+    gap: 8,
+  },
+  jackpotTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  urgencyAlertBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  urgencyAlertText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    flex: 1,
+    lineHeight: 15,
+  },
+  jackpotSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
+  },
+  jackpotCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 14,
+    marginTop: 2,
+  },
+  jackpotCtaText: {
+    color: '#14181B',
+    fontSize: 13.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
   promoBannerCard: {
     borderRadius: 20,
     padding: 16,
@@ -775,5 +1004,56 @@ const styles = StyleSheet.create({
   promoBannerSub: {
     fontSize: 12,
     lineHeight: 16,
+  },
+  healthSyncStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  healthSyncStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  healthLastSyncText: {
+    fontSize: 10.5,
+    marginTop: 2,
+  },
+  syncNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  syncNowBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  segmentContainer: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 3,
+    marginTop: 12,
+  },
+  segmentBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 9,
+  },
+  segmentBtnActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

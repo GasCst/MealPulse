@@ -44,9 +44,16 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
   const handleClose = onClose || closePaywall;
 
   const handleDismissPaywall = () => {
-    if (!isPro && !hasSeenSpinWheel) {
+    if (onClose) {
+      // When an explicit onClose callback is provided (e.g. from OnboardingScreen),
+      // forward the dismiss action directly so the caller can sequence the SpinWheelModal.
+      onClose();
+    } else if (!isPro && !hasSeenSpinWheel) {
       setHasSeenSpinWheel(true);
-      setShowSpinWheelModal(true);
+      closePaywall();
+      setTimeout(() => {
+        setShowSpinWheelModal(true);
+      }, 250);
     } else {
       handleClose();
     }

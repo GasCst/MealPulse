@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -26,11 +29,21 @@ export default function AuditRewardsScreen() {
 
   const targetCalorieGoal = 1920;
 
+  const triggerHaptic = (type: 'light' | 'medium' = 'light') => {
+    try {
+      if (Platform.OS !== 'web') {
+        if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     loadUserRewards();
   }, [user]);
 
   const loadUserRewards = async () => {
+    triggerHaptic('light');
     setLoading(true);
     const data = await SupabaseService.fetchMealLogsHistory(user?.id);
     setMealLogs(data);
@@ -107,89 +120,124 @@ export default function AuditRewardsScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
-      <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Daily Score & Rewards 🏆</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Calorie Compliance & Active Streaks</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('daily_rewards_title')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('daily_rewards_sub')}</Text>
           </View>
 
-          <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: colors.inputBg }]} onPress={loadUserRewards}>
-            <Ionicons name="refresh" size={18} color={colors.textPrimary} />
+          <TouchableOpacity
+            style={[styles.refreshBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
+            onPress={loadUserRewards}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="refresh" size={18} color={colors.lime} />
           </TouchableOpacity>
         </View>
 
         {/* Daily Compliance Hero Card */}
-        <View style={styles.scoreHeroCard}>
+        <Animated.View
+          entering={FadeInUp.duration(500)}
+          style={[styles.scoreHeroCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
+        >
           <View style={styles.scoreHeaderRow}>
-            <View style={styles.scoreBadge}>
-              <Ionicons name="sparkles" size={14} color="#84CC16" />
-              <Text style={styles.scoreBadgeText}>TODAY COMPLIANCE SCORE</Text>
+            <View style={[styles.scoreBadge, { backgroundColor: colors.limeGlow }]}>
+              <Ionicons name="sparkles" size={14} color={colors.lime} />
+              <Text style={[styles.scoreBadgeText, { color: colors.lime }]}>{t('today_compliance_score')}</Text>
             </View>
-            <Text style={styles.streakText}>🔥 {streakDays} Day Streak</Text>
+            <Text style={[styles.streakText, { color: colors.coral }]}>🔥 {streakDays} {t('day_streak')}</Text>
           </View>
 
           <View style={styles.scoreValRow}>
-            <Text style={styles.scoreValNum}>{dailyScore}</Text>
-            <Text style={styles.scoreUnit}>/ 100 pts</Text>
+            <Text style={[styles.scoreValNum, { color: colors.lime }]}>{dailyScore}</Text>
+            <Text style={[styles.scoreUnit, { color: colors.textSecondary }]}>/ 100 pts</Text>
           </View>
 
-          <Text style={styles.scoreFeedback}>
+          <Text style={[styles.scoreFeedback, { color: colors.textSecondary }]}>
             {todayCalories === 0
-              ? 'No meals logged yet today. Snap a photo on the Home tab to earn today score!'
+              ? t('no_food_logged_yet')
               : isGoalMetToday
-              ? `🎉 Perfect! ${todayCalories} kcal logged (Inside ${targetCalorieGoal} kcal target).`
-              : `⚠️ ${todayCalories} kcal logged (${todayCalories - targetCalorieGoal} kcal over target).`}
+              ? `🎉 ${todayCalories} kcal (${targetCalorieGoal} kcal)`
+              : `⚠️ ${todayCalories} kcal (${todayCalories - targetCalorieGoal} kcal)`}
           </Text>
 
-          <View style={styles.pointsPillRow}>
-            <Ionicons name="ribbon-outline" size={16} color="#0F172A" />
-            <Text style={styles.pointsPillText}>Total Earned: {totalPoints} Nutrition Points</Text>
+          <View style={[styles.pointsPillRow, { backgroundColor: colors.lime }]}>
+            <Ionicons name="ribbon" size={16} color="#0F172A" />
+            <Text style={styles.pointsPillText}>{t('total_earned_pts').replace('{pts}', String(totalPoints))}</Text>
           </View>
-        </View>
+        </Animated.View>
 
         {/* Achievements Checklist */}
         <View style={styles.listSection}>
-          <Text style={styles.sectionTitle}>Unlocked Achievements</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('unlocked_achievements')}</Text>
 
           {loading ? (
             <View style={{ padding: 30, alignItems: 'center' }}>
-              <ActivityIndicator size="small" color="#84CC16" />
+              <ActivityIndicator size="small" color={colors.lime} />
             </View>
           ) : (
-            achievements.map((item) => (
-              <TouchableOpacity
+            achievements.map((item, idx) => (
+              <Animated.View
                 key={item.id}
-                style={[styles.rewardCard, !item.unlocked && styles.rewardCardLocked]}
-                onPress={() => {
-                  if (!item.unlocked && item.id === '4') {
-                    openPaywall('rewards_pro');
-                  } else {
-                    Alert.alert(item.title, `${item.desc}\nPoints: +${item.points} pts`);
-                  }
-                }}
-                activeOpacity={0.8}
+                entering={FadeInUp.delay(100 + idx * 60).duration(400)}
               >
-                <View style={[styles.rewardIconCircle, !item.unlocked && styles.iconLocked]}>
-                  <Ionicons
-                    name={item.icon as any}
-                    size={20}
-                    color={item.unlocked ? '#84CC16' : '#94A3B8'}
-                  />
-                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.rewardCard,
+                    { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
+                    !item.unlocked && styles.rewardCardLocked,
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('light');
+                    if (!item.unlocked && item.id === '4') {
+                      openPaywall('rewards_pro');
+                    } else {
+                      Alert.alert(item.title, `${item.desc}\nPoints: +${item.points} pts`);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.rewardIconCircle,
+                      { backgroundColor: item.unlocked ? colors.limeGlow : colors.inputBg },
+                    ]}
+                  >
+                    <Ionicons
+                      name={item.icon as any}
+                      size={20}
+                      color={item.unlocked ? colors.lime : colors.textMuted}
+                    />
+                  </View>
 
-                <View style={styles.rewardInfoGroup}>
-                  <Text style={styles.rewardTitle}>{item.title}</Text>
-                  <Text style={styles.rewardDesc}>{item.desc}</Text>
-                </View>
+                  <View style={styles.rewardInfoGroup}>
+                    <Text style={[styles.rewardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+                    <Text style={[styles.rewardDesc, { color: colors.textSecondary }]}>{item.desc}</Text>
+                  </View>
 
-                <View style={[styles.rewardPointsBadge, !item.unlocked && styles.rewardPointsLocked]}>
-                  <Text style={[styles.rewardPointsText, !item.unlocked && styles.rewardPointsTextLocked]}>
-                    {item.unlocked ? `+${item.points} pts` : 'Locked'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                  <View
+                    style={[
+                      styles.rewardPointsBadge,
+                      { backgroundColor: item.unlocked ? colors.lime : colors.inputBg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.rewardPointsText,
+                        { color: item.unlocked ? '#0F172A' : colors.textMuted },
+                      ]}
+                    >
+                      {item.unlocked ? `+${item.points} pts` : t('locked')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
             ))
           )}
         </View>
@@ -203,51 +251,44 @@ export default function AuditRewardsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   container: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 100,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '900',
   },
   subtitle: {
     fontSize: 13,
-    color: '#64748B',
     marginTop: 2,
   },
   refreshBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
   },
   scoreHeroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1.5,
-    borderColor: '#BEF264',
-    marginBottom: 24,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     elevation: 2,
   },
   scoreHeaderRow: {
@@ -259,48 +300,41 @@ const styles = StyleSheet.create({
   scoreBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7FEE7',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
     gap: 6,
   },
   scoreBadgeText: {
-    color: '#84CC16',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   streakText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#F97316',
+    fontWeight: '900',
   },
   scoreValRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   scoreValNum: {
     fontSize: 42,
     fontWeight: '900',
-    color: '#0F172A',
   },
   scoreUnit: {
-    fontSize: 16,
-    color: '#64748B',
+    fontSize: 15,
     marginLeft: 6,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   scoreFeedback: {
     fontSize: 13,
-    color: '#334155',
     lineHeight: 18,
     marginBottom: 14,
   },
   pointsPillRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#BEF264',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -309,27 +343,24 @@ const styles = StyleSheet.create({
   },
   pointsPillText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#0F172A',
   },
   listSection: {
     gap: 12,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontSize: 17,
+    fontWeight: '900',
     marginBottom: 4,
   },
   rewardCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   rewardCardLocked: {
     opacity: 0.75,
@@ -338,41 +369,27 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F7FEE7',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  iconLocked: {
-    backgroundColor: '#F1F5F9',
   },
   rewardInfoGroup: {
     flex: 1,
   },
   rewardTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontWeight: '800',
   },
   rewardDesc: {
     fontSize: 12,
-    color: '#64748B',
     marginTop: 2,
   },
   rewardPointsBadge: {
-    backgroundColor: '#BEF264',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 10,
-  },
-  rewardPointsLocked: {
-    backgroundColor: '#F1F5F9',
   },
   rewardPointsText: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  rewardPointsTextLocked: {
-    color: '#94A3B8',
+    fontWeight: '900',
   },
 });

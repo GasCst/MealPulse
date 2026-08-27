@@ -3,16 +3,19 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/context/ThemeContext';
 import { PaywallModal } from '@/components/PaywallModal';
 import { SupabaseService } from '@/services/supabaseService';
 
@@ -26,18 +29,30 @@ interface JournalEntry {
 
 export default function JournalScreen() {
   const { isPro, openPaywall, user } = useSubscription();
+  const { colors, isDarkMode } = useTheme();
 
   const [noteText, setNoteText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sentiment, setSentiment] = useState<'High Focus' | 'Balanced' | 'Challenged'>('High Focus');
   const [entries, setEntries] = useState<JournalEntry[]>([
     {
       id: '1',
       date: 'Today',
-      note: 'Built out the primary paywall screen with weekly & monthly subscription options. Staying focused on the $1k/mo MRR target.',
+      note: 'Maintained optimal macro targets and completed 16h intermittent fast. High energy during morning workouts.',
       sentiment: 'High Focus',
-      aiAdvice: 'Great momentum! High conversion paywalls convert 3.5x better when paired with a 3-day free trial on weekly plans.',
+      aiAdvice: 'Great momentum! Consistent protein intake paired with adequate hydration accelerates metabolic recovery.',
     },
   ]);
+
+  const triggerHaptic = (type: 'light' | 'medium' | 'success' = 'light') => {
+    try {
+      if (Platform.OS !== 'web') {
+        if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -58,11 +73,11 @@ export default function JournalScreen() {
   const handleSaveEntry = async () => {
     if (!noteText.trim()) return;
 
+    triggerHaptic('success');
     setLoading(true);
 
     const note = noteText.trim();
-    const sentiment = 'High Focus';
-    const aiAdvice = 'AI Insight: Consistent execution identified. Recommend doubling down on daily nutrition tracking.';
+    const aiAdvice = 'AI Insight: Consistent execution identified. Daily reflection improves adherence by 40%.';
 
     if (user?.id) {
       const created = await SupabaseService.saveJournalEntry(user.id, {
@@ -100,86 +115,149 @@ export default function JournalScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>AI Mindset Journal</Text>
-            <Text style={styles.subtitle}>Reflection & AI Performance Insights</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>AI Mindset Journal</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Reflection & AI Performance Insights</Text>
           </View>
         </View>
 
         {/* Input Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Daily Mindset Reflection</Text>
+        <Animated.View
+          entering={FadeInUp.duration(500)}
+          style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Daily Reflection</Text>
+
+          {/* Sentiment Pill Selector */}
+          <View style={styles.sentimentRow}>
+            {(['High Focus', 'Balanced', 'Challenged'] as const).map((s) => {
+              const isSelected = sentiment === s;
+              return (
+                <TouchableOpacity
+                  key={s}
+                  style={[
+                    styles.sentimentChip,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                    isSelected && {
+                      backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1',
+                      borderColor: colors.lime,
+                      borderWidth: 1.5,
+                    },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('light');
+                    setSentiment(s);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.sentimentChipText,
+                      { color: isSelected ? colors.lime : colors.textSecondary },
+                      isSelected && { fontWeight: '900' },
+                    ]}
+                  >
+                    {s === 'High Focus' ? '⚡ ' : s === 'Balanced' ? '🌿 ' : '🔥 '}
+                    {s}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <TextInput
-            style={styles.textInput}
-            placeholder="How was your focus and momentum today? What wins or blockers occurred?"
-            placeholderTextColor="#64748B"
+            style={[
+              styles.textInput,
+              { backgroundColor: colors.inputBg, color: colors.textPrimary, borderColor: colors.inputBorder },
+            ]}
+            placeholder="How was your energy and nutrition balance today? What wins occurred?"
+            placeholderTextColor={colors.textMuted}
             value={noteText}
             onChangeText={setNoteText}
             multiline
           />
           <TouchableOpacity
-            style={styles.saveBtn}
+            style={[styles.saveBtn, { backgroundColor: colors.lime }]}
             onPress={handleSaveEntry}
             disabled={loading}
             activeOpacity={0.85}
           >
             {loading ? (
-              <ActivityIndicator color="#FFF" />
+              <ActivityIndicator color="#0F172A" />
             ) : (
               <>
-                <Ionicons name="sparkles" size={16} color="#FFF" />
+                <Ionicons name="sparkles" size={16} color="#0F172A" />
                 <Text style={styles.saveBtnText}>Analyze & Save Entry</Text>
               </>
             )}
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         {/* PRO Trend Analytics Teaser */}
         {!isPro && (
-          <TouchableOpacity
-            style={styles.proAnalyticsCard}
-            onPress={() => openPaywall('journal_analytics')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.proAnalyticsLeft}>
-              <View style={styles.lockCircle}>
-                <Ionicons name="analytics" size={18} color="#F59E0B" />
+          <Animated.View entering={FadeInUp.delay(100).duration(400)}>
+            <TouchableOpacity
+              style={[
+                styles.proAnalyticsCard,
+                {
+                  backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.08)' : '#FFFBEB',
+                  borderColor: 'rgba(245, 158, 11, 0.3)',
+                },
+              ]}
+              onPress={() => {
+                triggerHaptic('medium');
+                openPaywall('journal_analytics');
+              }}
+              activeOpacity={0.85}
+            >
+              <View style={styles.proAnalyticsLeft}>
+                <View style={[styles.lockCircle, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                  <Ionicons name="analytics" size={18} color="#F59E0B" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.proAnalyticsTitle, { color: colors.textPrimary }]}>Unlock 30-Day Mindset Analytics</Text>
+                  <Text style={[styles.proAnalyticsSub, { color: colors.textSecondary }]}>
+                    Track emotional focus trends, burn-out indicators & weekly AI coaching summaries.
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.proAnalyticsTitle}>Unlock 30-Day Mindset Analytics</Text>
-                <Text style={styles.proAnalyticsSub}>
-                  Track emotional focus trends, burn-out indicators & weekly AI coaching summaries.
-                </Text>
+              <View style={[styles.proPill, { backgroundColor: '#F59E0B' }]}>
+                <Text style={styles.proPillText}>PRO</Text>
               </View>
-            </View>
-            <View style={styles.proPill}>
-              <Text style={styles.proPillText}>PRO</Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </Animated.View>
         )}
 
         {/* Previous Entries */}
         <View style={styles.entriesSection}>
-          <Text style={styles.sectionHeader}>Journal History</Text>
-          {entries.map((entry) => (
-            <View key={entry.id} style={styles.entryCard}>
+          <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Journal History</Text>
+          {entries.map((entry, idx) => (
+            <Animated.View
+              key={entry.id}
+              entering={FadeInUp.delay(120 + idx * 50).duration(400)}
+              style={[styles.entryCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+            >
               <View style={styles.entryHeader}>
-                <View style={styles.sentimentBadge}>
-                  <Ionicons name="sunny" size={12} color="#10B981" />
-                  <Text style={styles.sentimentText}>{entry.sentiment}</Text>
+                <View style={[styles.sentimentBadge, { backgroundColor: colors.limeGlow }]}>
+                  <Ionicons name="sunny" size={12} color={colors.lime} />
+                  <Text style={[styles.sentimentText, { color: colors.lime }]}>{entry.sentiment}</Text>
                 </View>
-                <Text style={styles.entryDate}>{entry.date}</Text>
+                <Text style={[styles.entryDate, { color: colors.textSecondary }]}>{entry.date}</Text>
               </View>
-              <Text style={styles.entryNote}>{entry.note}</Text>
-              <View style={styles.aiAdviceBox}>
-                <Ionicons name="sparkles" size={14} color="#818CF8" />
-                <Text style={styles.aiAdviceText}>{entry.aiAdvice}</Text>
+              <Text style={[styles.entryNote, { color: colors.textPrimary }]}>{entry.note}</Text>
+              <View style={[styles.aiAdviceBox, { backgroundColor: colors.inputBg }]}>
+                <Ionicons name="sparkles" size={14} color={colors.lime} />
+                <Text style={[styles.aiAdviceText, { color: colors.textSecondary }]}>{entry.aiAdvice}</Text>
               </View>
-            </View>
+            </Animated.View>
           ))}
         </View>
       </ScrollView>
@@ -192,57 +270,63 @@ export default function JournalScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090D16',
   },
   container: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontSize: 22,
+    fontWeight: '900',
   },
   subtitle: {
     fontSize: 13,
-    color: '#94A3B8',
     marginTop: 2,
   },
   card: {
-    backgroundColor: '#131C2E',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 20,
   },
   cardTitle: {
     fontSize: 14,
+    fontWeight: '900',
+    marginBottom: 12,
+  },
+  sentimentRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sentimentChip: {
+    flex: 1,
+    borderWidth: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  sentimentChipText: {
+    fontSize: 11.5,
     fontWeight: '700',
-    color: '#F8FAFC',
-    marginBottom: 10,
   },
   textInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderRadius: 12,
     padding: 12,
-    color: '#F8FAFC',
     fontSize: 14,
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: '#6366F1',
     paddingVertical: 13,
     borderRadius: 12,
     flexDirection: 'row',
@@ -251,20 +335,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   saveBtnText: {
-    color: '#FFF',
+    color: '#0F172A',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '900',
   },
   proAnalyticsCard: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   proAnalyticsLeft: {
     flexDirection: 'row',
@@ -277,47 +359,40 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   proAnalyticsTitle: {
     fontSize: 13.5,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontWeight: '900',
   },
   proAnalyticsSub: {
     fontSize: 11,
-    color: '#94A3B8',
     marginTop: 2,
     lineHeight: 16,
   },
   proPill: {
-    backgroundColor: '#F59E0B',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
   proPillText: {
-    color: '#000',
+    color: '#0F172A',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   entriesSection: {
     gap: 12,
   },
   sectionHeader: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontWeight: '900',
     marginBottom: 4,
   },
   entryCard: {
-    backgroundColor: '#131C2E',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   entryHeader: {
     flexDirection: 'row',
@@ -329,23 +404,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   sentimentText: {
-    color: '#34D399',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '900',
   },
   entryDate: {
     fontSize: 11,
-    color: '#64748B',
   },
   entryNote: {
     fontSize: 13.5,
-    color: '#F8FAFC',
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -353,13 +424,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
     borderRadius: 10,
     padding: 10,
   },
   aiAdviceText: {
     fontSize: 12,
-    color: '#818CF8',
     flex: 1,
     lineHeight: 17,
   },

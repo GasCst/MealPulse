@@ -3,15 +3,18 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Switch,
   Alert,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/context/ThemeContext';
 import { PaywallModal } from '@/components/PaywallModal';
 
 interface UpcomingRenewal {
@@ -27,6 +30,7 @@ interface UpcomingRenewal {
 
 export default function RenewalsScreen() {
   const { isPro, openPaywall } = useSubscription();
+  const { colors, isDarkMode } = useTheme();
 
   const [renewals] = useState<UpcomingRenewal[]>([
     {
@@ -37,7 +41,7 @@ export default function RenewalsScreen() {
       daysLeft: 4,
       isTrial: false,
       icon: 'tv',
-      color: '#E50914',
+      color: '#EF4444',
     },
     {
       id: '2',
@@ -57,7 +61,7 @@ export default function RenewalsScreen() {
       daysLeft: 11,
       isTrial: false,
       icon: 'sparkles',
-      color: '#10A37F',
+      color: '#10B981',
     },
     {
       id: '4',
@@ -67,96 +71,129 @@ export default function RenewalsScreen() {
       daysLeft: 18,
       isTrial: false,
       icon: 'fitness',
-      color: '#F59E0B',
+      color: '#38BDF8',
     },
   ]);
 
   const [enable3DayAlert, setEnable3DayAlert] = useState(true);
   const [enableTrialAlert, setEnableTrialAlert] = useState(true);
 
-  const colors = Colors.dark;
+  const triggerHaptic = (type: 'light' | 'medium' = 'light') => {
+    try {
+      if (Platform.OS !== 'web') {
+        if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    } catch {}
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Renewal Calendar</Text>
-            <Text style={styles.subtitle}>Upcoming Payments & Trial Expirations</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Renewal Calendar</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Upcoming Payments & Trial Expirations</Text>
           </View>
         </View>
 
         {/* Alert Controls Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardHeader}>Smart Notification Warnings</Text>
+        <Animated.View
+          entering={FadeInUp.duration(500)}
+          style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
+        >
+          <Text style={[styles.cardHeader, { color: colors.textPrimary }]}>Smart Notification Warnings</Text>
 
-          <View style={styles.switchRow}>
+          <View style={[styles.switchRow, { backgroundColor: colors.inputBg }]}>
             <View style={styles.switchTextGroup}>
-              <Text style={styles.switchTitle}>3-Day Pre-Charge Alert</Text>
-              <Text style={styles.switchSub}>Sends push notification before card gets debited</Text>
+              <Text style={[styles.switchTitle, { color: colors.textPrimary }]}>3-Day Pre-Charge Alert</Text>
+              <Text style={[styles.switchSub, { color: colors.textSecondary }]}>Sends push notification before card gets debited</Text>
             </View>
             <Switch
               value={enable3DayAlert}
-              onValueChange={setEnable3DayAlert}
-              trackColor={{ false: '#334155', true: '#6366F1' }}
-              thumbColor={enable3DayAlert ? '#FFF' : '#94A3B8'}
+              onValueChange={(v) => {
+                triggerHaptic('light');
+                setEnable3DayAlert(v);
+              }}
+              trackColor={{ false: isDarkMode ? '#283144' : '#CBD5E1', true: colors.lime }}
+              thumbColor={enable3DayAlert ? '#0F172A' : '#94A3B8'}
             />
           </View>
 
-          <View style={[styles.switchRow, { marginTop: 12 }]}>
+          <View style={[styles.switchRow, { backgroundColor: colors.inputBg, marginTop: 10 }]}>
             <View style={styles.switchTextGroup}>
-              <Text style={styles.switchTitle}>Free Trial Auto-Cancel Alert</Text>
-              <Text style={styles.switchSub}>Warns 24 hours before free trial converts to paid</Text>
+              <Text style={[styles.switchTitle, { color: colors.textPrimary }]}>Free Trial Auto-Cancel Alert</Text>
+              <Text style={[styles.switchSub, { color: colors.textSecondary }]}>Warns 24 hours before free trial converts to paid</Text>
             </View>
             <Switch
               value={enableTrialAlert}
-              onValueChange={setEnableTrialAlert}
-              trackColor={{ false: '#334155', true: '#6366F1' }}
-              thumbColor={enableTrialAlert ? '#FFF' : '#94A3B8'}
+              onValueChange={(v) => {
+                triggerHaptic('light');
+                setEnableTrialAlert(v);
+              }}
+              trackColor={{ false: isDarkMode ? '#283144' : '#CBD5E1', true: colors.lime }}
+              thumbColor={enableTrialAlert ? '#0F172A' : '#94A3B8'}
             />
           </View>
-        </View>
+        </Animated.View>
 
         {/* Timeline of Renewals */}
         <View style={styles.listSection}>
-          <Text style={styles.sectionHeader}>Upcoming Timeline</Text>
+          <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Upcoming Timeline</Text>
 
-          {renewals.map((item) => (
-            <View
+          {renewals.map((item, idx) => (
+            <Animated.View
               key={item.id}
-              style={[styles.renewalCard, item.isTrial && styles.renewalCardTrial]}
+              entering={FadeInUp.delay(100 + idx * 60).duration(400)}
             >
-              <View style={[styles.iconBox, { backgroundColor: item.color + '20' }]}>
-                <Ionicons name={item.icon as any} size={20} color={item.color} />
-              </View>
-
-              <View style={styles.infoGroup}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  {item.isTrial && (
-                    <View style={styles.trialPill}>
-                      <Text style={styles.trialPillText}>TRIAL RISK</Text>
-                    </View>
-                  )}
+              <View
+                style={[
+                  styles.renewalCard,
+                  { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
+                  item.isTrial && {
+                    borderColor: 'rgba(245, 158, 11, 0.4)',
+                    backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.08)' : '#FFFBEB',
+                  },
+                ]}
+              >
+                <View style={[styles.iconBox, { backgroundColor: item.color + '20' }]}>
+                  <Ionicons name={item.icon as any} size={20} color={item.color} />
                 </View>
-                <Text style={styles.dateText}>{item.date}</Text>
-              </View>
 
-              <View style={styles.priceGroup}>
-                <Text style={styles.priceText}>${item.price.toFixed(2)}</Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    Alert.alert(
-                      'Renewal Reminder Set',
-                      `Push alert configured for ${item.name} in ${item.daysLeft - 1} days.`
-                    )
-                  }
-                >
-                  <Ionicons name="notifications-outline" size={18} color="#818CF8" />
-                </TouchableOpacity>
+                <View style={styles.infoGroup}>
+                  <View style={styles.titleRow}>
+                    <Text style={[styles.itemName, { color: colors.textPrimary }]}>{item.name}</Text>
+                    {item.isTrial && (
+                      <View style={styles.trialPill}>
+                        <Text style={styles.trialPillText}>TRIAL RISK</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.dateText, { color: colors.textSecondary }]}>{item.date}</Text>
+                </View>
+
+                <View style={styles.priceGroup}>
+                  <Text style={[styles.priceText, { color: colors.textPrimary }]}>${item.price.toFixed(2)}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      triggerHaptic('medium');
+                      Alert.alert(
+                        'Renewal Reminder Set',
+                        `Push alert configured for ${item.name} in ${item.daysLeft - 1} days.`
+                      );
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="notifications-outline" size={18} color={colors.lime} />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            </Animated.View>
           ))}
         </View>
       </ScrollView>
@@ -169,50 +206,42 @@ export default function RenewalsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090D16',
   },
   container: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontSize: 22,
+    fontWeight: '900',
   },
   subtitle: {
     fontSize: 13,
-    color: '#94A3B8',
     marginTop: 2,
   },
   card: {
-    backgroundColor: '#131C2E',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   cardHeader: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    marginBottom: 14,
+    fontWeight: '900',
+    marginBottom: 12,
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
   },
   switchTextGroup: {
     flex: 1,
@@ -220,40 +249,31 @@ const styles = StyleSheet.create({
   },
   switchTitle: {
     fontSize: 13.5,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontWeight: '800',
   },
   switchSub: {
     fontSize: 11,
-    color: '#94A3B8',
     marginTop: 2,
   },
   listSection: {
-    gap: 12,
+    gap: 10,
   },
   sectionHeader: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontWeight: '900',
     marginBottom: 4,
   },
   renewalCard: {
-    backgroundColor: '#131C2E',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  renewalCardTrial: {
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    backgroundColor: 'rgba(245, 158, 11, 0.06)',
   },
   iconBox: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
@@ -268,8 +288,7 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: 14.5,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontWeight: '800',
   },
   trialPill: {
     backgroundColor: '#F59E0B',
@@ -278,14 +297,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   trialPillText: {
-    color: '#000',
+    color: '#0F172A',
     fontSize: 9,
     fontWeight: '900',
   },
   dateText: {
-    fontSize: 11.5,
-    color: '#94A3B8',
-    marginTop: 3,
+    fontSize: 12,
+    marginTop: 2,
   },
   priceGroup: {
     alignItems: 'flex-end',
@@ -293,7 +311,6 @@ const styles = StyleSheet.create({
   },
   priceText: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontWeight: '900',
   },
 });

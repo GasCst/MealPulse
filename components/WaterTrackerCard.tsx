@@ -1,139 +1,183 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ExpoGoSafeAsyncStorage, SupabaseService } from '@/services/supabaseService';
+import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+  FadeInUp,
+} from 'react-native-reanimated';
 import { useLanguage } from '@/context/LanguageContext';
+import { useTheme } from '@/context/ThemeContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 
-const WATER_STORAGE_KEY = '@mealpulse_water_intake_v1';
+interface WaterTrackerCardProps {
+  selectedDate?: Date | string;
+}
 
-export const WaterTrackerCard: React.FC = () => {
+export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate }) => {
   const { t } = useLanguage();
-  const { user, waterTarget, beginWrite, endWrite } = useSubscription();
-  const [waterMl, setWaterMl] = useState<number>(1250);
-  const targetMl = waterTarget || 2500;
+  const { isDarkMode, colors } = useTheme();
+  const {
+    waterTarget,
+    getWaterIntakeForDateSync,
+    loadWaterIntakeForDate,
+    updateWaterIntake,
+  } = useSubscription();
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const getDateKey = (d?: Date | string): string => {
+    if (!d) return new Date().toISOString().split('T')[0];
+    if (typeof d === 'string') return d.includes('T') ? d.split('T')[0] : d;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const currentDateKey = getDateKey(selectedDate);
+  const currentIntake = getWaterIntakeForDateSync(currentDateKey);
 
   useEffect(() => {
-    loadWater();
-  }, [user, todayStr]);
+    loadWaterIntakeForDate(currentDateKey);
+  }, [currentDateKey]);
 
-  const loadWater = async () => {
+  const targetMl = waterTarget || 2500;
+  const percent = Math.min(100, Math.round((currentIntake / targetMl) * 100));
+
+  const progressShared = useSharedValue(0);
+
+  useEffect(() => {
+    progressShared.value = withTiming(percent / 100, {
+      duration: 650,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [percent]);
+
+  const progressBarStyle = useAnimatedStyle(() => ({
+    width: `${progressShared.value * 100}%`,
+  }));
+
+  const triggerHaptic = (type: 'light' | 'medium' = 'light') => {
     try {
-      if (user?.id) {
-        const cloudLog = await SupabaseService.getWaterLog(user.id, todayStr);
-        if (cloudLog && cloudLog.amount_ml !== undefined) {
-          setWaterMl(Number(cloudLog.amount_ml));
-          return;
-        }
+      if (Platform.OS !== 'web') {
+        if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
-
-      const todayKey = user?.id ? `${WATER_STORAGE_KEY}_${user.id}_${todayStr}` : `${WATER_STORAGE_KEY}_guest_${todayStr}`;
-      const saved = await ExpoGoSafeAsyncStorage.getItem(todayKey);
-      if (saved) {
-        setWaterMl(parseInt(saved, 10) || 0);
-      } else {
-        setWaterMl(0);
-      }
-    } catch (e) {
-      console.warn('Error loading water intake:', e);
-    }
+    } catch {}
   };
 
-  const updateWaterIntake = async (delta: number) => {
-    beginWrite();
-    try {
-      const nextVal = Math.max(0, Math.min(5000, waterMl + delta));
-      setWaterMl(nextVal);
-      const todayKey = user?.id ? `${WATER_STORAGE_KEY}_${user.id}_${todayStr}` : `${WATER_STORAGE_KEY}_guest_${todayStr}`;
-      await ExpoGoSafeAsyncStorage.setItem(todayKey, nextVal.toString());
-      if (user?.id) {
-        await SupabaseService.saveWaterLog(user.id, todayStr, nextVal, targetMl);
-      }
-    } catch (e) {
-      console.warn('Error saving water intake:', e);
-    } finally {
-      endWrite();
-    }
+  const handleAdd = (amount: number) => {
+    triggerHaptic('medium');
+    updateWaterIntake(amount, currentDateKey);
   };
-
-  const percent = Math.min(100, Math.round((waterMl / targetMl) * 100));
 
   return (
-    <View style={styles.card}>
+    <Animated.View
+      entering={FadeInUp.delay(100).duration(500)}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.cardBg,
+          borderColor: colors.cardBorder,
+          borderWidth: 1,
+        },
+      ]}
+    >
       <View style={styles.headerRow}>
         <View style={styles.titleGroup}>
-          <View style={styles.iconCircle}>
+          <View style={[styles.iconCircle, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
             <Text style={{ fontSize: 18 }}>💧</Text>
           </View>
           <View>
-            <Text style={styles.title}>{t('water_tracker_title')}</Text>
-            <Text style={styles.sub}>{t('water_tracker_sub')}</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('water_tracker_title')}</Text>
+            <Text style={[styles.sub, { color: colors.textSecondary }]}>{t('water_tracker_sub')}</Text>
           </View>
         </View>
-        <Text style={styles.percentBadge}>{percent}%</Text>
+        <Text style={[styles.percentBadge, { backgroundColor: 'rgba(56, 189, 248, 0.18)', color: '#38BDF8' }]}>
+          {percent}%
+        </Text>
       </View>
 
-      {/* Progress Bar */}
-      <View style={styles.progressBg}>
-        <View style={[styles.progressFill, { width: `${percent}%` }]} />
+      {/* Progress Bar with animated fill */}
+      <View style={[styles.progressBg, { backgroundColor: isDarkMode ? '#202836' : '#E0F2FE' }]}>
+        <Animated.View style={[styles.progressFill, { backgroundColor: colors.sky }, progressBarStyle]} />
       </View>
 
       <View style={styles.statsRow}>
-        <Text style={styles.currentText}>
-          {(waterMl / 1000).toFixed(2)} L <Text style={styles.statSub}>/ {(targetMl / 1000).toFixed(1)} L</Text>
+        <Text style={[styles.currentText, { color: colors.textPrimary }]}>
+          {(currentIntake / 1000).toFixed(2)} L <Text style={[styles.statSub, { color: colors.textSecondary }]}>/ {(targetMl / 1000).toFixed(1)} L</Text>
         </Text>
-        <Text style={styles.glassesText}>{Math.round(waterMl / 250)} Glasses</Text>
+        <Text style={[styles.glassesText, { color: colors.sky }]}>{Math.round(currentIntake / 250)} {t('glasses')}</Text>
       </View>
 
       {/* Quick Add & Decrement Buttons */}
       <View style={styles.btnRow}>
         <TouchableOpacity
-          style={[styles.addBtn, styles.decrementBtn, waterMl === 0 && styles.disabledBtn]}
-          onPress={() => updateWaterIntake(-250)}
-          disabled={waterMl === 0}
+          style={[
+            styles.addBtn,
+            styles.decrementBtn,
+            {
+              backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+              borderColor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+            },
+            currentIntake === 0 && (isDarkMode ? styles.disabledBtnDark : styles.disabledBtn),
+          ]}
+          onPress={() => handleAdd(-250)}
+          disabled={currentIntake === 0}
           activeOpacity={0.8}
         >
-          <Ionicons name="remove" size={16} color={waterMl === 0 ? '#94A3B8' : '#EF4444'} />
-          <Text style={[styles.addBtnText, styles.decrementBtnText, waterMl === 0 && styles.disabledBtnText]}>-250 ml</Text>
+          <Ionicons name="remove" size={16} color={currentIntake === 0 ? colors.textMuted : '#EF4444'} />
+          <Text style={[styles.addBtnText, styles.decrementBtnText, currentIntake === 0 && { color: colors.textMuted }]}>-250 ml</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => updateWaterIntake(250)}
+          style={[
+            styles.addBtn,
+            {
+              backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.12)' : '#F0F9FF',
+              borderColor: isDarkMode ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD',
+            },
+          ]}
+          onPress={() => handleAdd(250)}
           activeOpacity={0.8}
         >
-          <Ionicons name="add" size={16} color="#0284C7" />
-          <Text style={styles.addBtnText}>+250 ml</Text>
+          <Ionicons name="add" size={16} color={colors.sky} />
+          <Text style={[styles.addBtnText, { color: colors.sky }]}>+250 ml</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => updateWaterIntake(500)}
+          style={[
+            styles.addBtn,
+            {
+              backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.12)' : '#F0F9FF',
+              borderColor: isDarkMode ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD',
+            },
+          ]}
+          onPress={() => handleAdd(500)}
           activeOpacity={0.8}
         >
-          <Ionicons name="add" size={16} color="#0284C7" />
-          <Text style={styles.addBtnText}>+500 ml</Text>
+          <Ionicons name="add" size={16} color={colors.sky} />
+          <Text style={[styles.addBtnText, { color: colors.sky }]}>+500 ml</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E0F2FE',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    marginHorizontal: 16,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: 'row',
@@ -150,22 +194,18 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#E0F2FE',
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '900',
   },
   sub: {
     fontSize: 11,
-    color: '#64748B',
+    marginTop: 1,
   },
   percentBadge: {
-    backgroundColor: '#E0F2FE',
-    color: '#0284C7',
     fontSize: 12,
     fontWeight: '900',
     paddingHorizontal: 10,
@@ -174,14 +214,12 @@ const styles = StyleSheet.create({
   },
   progressBg: {
     height: 10,
-    backgroundColor: '#F0F9FF',
     borderRadius: 5,
     overflow: 'hidden',
     marginBottom: 10,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#38BDF8',
     borderRadius: 5,
   },
   statsRow: {
@@ -192,18 +230,15 @@ const styles = StyleSheet.create({
   },
   currentText: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '900',
   },
   statSub: {
     fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   glassesText: {
     fontSize: 12,
-    color: '#0284C7',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   btnRow: {
     flexDirection: 'row',
@@ -211,9 +246,7 @@ const styles = StyleSheet.create({
   },
   addBtn: {
     flex: 1,
-    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#BAE6FD',
     paddingVertical: 10,
     borderRadius: 12,
     flexDirection: 'row',
@@ -223,13 +256,9 @@ const styles = StyleSheet.create({
   },
   addBtnText: {
     fontSize: 12.5,
-    fontWeight: '700',
-    color: '#0284C7',
+    fontWeight: '800',
   },
-  decrementBtn: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
-  },
+  decrementBtn: {},
   decrementBtnText: {
     color: '#EF4444',
   },
@@ -237,7 +266,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderColor: '#E2E8F0',
   },
-  disabledBtnText: {
-    color: '#94A3B8',
+  disabledBtnDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
 });

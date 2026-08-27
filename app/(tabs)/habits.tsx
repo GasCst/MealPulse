@@ -3,15 +3,18 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/context/ThemeContext';
 import { PaywallModal } from '@/components/PaywallModal';
 import { SupabaseService } from '@/services/supabaseService';
 
@@ -26,15 +29,26 @@ interface Habit {
 
 export default function HabitsScreen() {
   const { isPro, openPaywall, user } = useSubscription();
+  const { colors, isDarkMode } = useTheme();
 
   const [habits, setHabits] = useState<Habit[]>([
     { id: '1', title: '25-min Deep Focus Sprint', category: 'Focus', streak: 7, completedToday: true },
     { id: '2', title: 'Cold Water & Morning Goal Review', category: 'Energy', streak: 4, completedToday: true },
-    { id: '3', title: 'Review $1k App Roadmap & Analytics', category: 'Monetization', streak: 12, completedToday: false },
-    { id: '4', title: 'Publish 1 Short Video / Post', category: 'Growth', streak: 3, completedToday: false, isProOnly: true },
+    { id: '3', title: 'Review $1k App Roadmap & Analytics', category: 'Nutrition', streak: 12, completedToday: false },
+    { id: '4', title: 'Post-Meal 15m Walk', category: 'Movement', streak: 3, completedToday: false, isProOnly: true },
   ]);
 
   const [newHabitText, setNewHabitText] = useState('');
+
+  const triggerHaptic = (type: 'light' | 'medium' | 'success' = 'light') => {
+    try {
+      if (Platform.OS !== 'web') {
+        if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -55,6 +69,7 @@ export default function HabitsScreen() {
 
   const toggleHabit = async (id: string) => {
     let updatedHabit: Habit | undefined;
+    triggerHaptic('success');
 
     setHabits((prev) =>
       prev.map((h) => {
@@ -81,12 +96,14 @@ export default function HabitsScreen() {
 
   const handleAddHabit = async () => {
     if (!isPro && habits.length >= 3) {
+      triggerHaptic('medium');
       openPaywall('habit_limit');
       return;
     }
 
     if (!newHabitText.trim()) return;
 
+    triggerHaptic('medium');
     const title = newHabitText.trim();
     setNewHabitText('');
 
@@ -122,115 +139,141 @@ export default function HabitsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Habit & Streak Studio</Text>
-            <Text style={styles.subtitle}>Daily consistency drives compound revenue</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Habit & Streak Studio</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Daily consistency compounds your fitness results</Text>
           </View>
 
           <TouchableOpacity
-            style={styles.streakBadge}
-            onPress={() => Alert.alert('Best Streak', '🔥 12-day streak on Monetization Review!')}
+            style={[styles.streakBadge, { backgroundColor: colors.limeGlow, borderColor: colors.lime }]}
+            onPress={() => {
+              triggerHaptic('light');
+              Alert.alert('Top Streak', '🔥 12-day streak on Nutrition Logging!');
+            }}
           >
-            <Ionicons name="flame" size={16} color="#F59E0B" />
-            <Text style={styles.streakBadgeText}>12 Days</Text>
+            <Ionicons name="flame" size={16} color={colors.lime} />
+            <Text style={[styles.streakBadgeText, { color: colors.lime }]}>12 Days</Text>
           </TouchableOpacity>
         </View>
 
         {/* Add Habit Box */}
-        <View style={styles.addCard}>
-          <Text style={styles.addTitle}>Create New Daily Habit</Text>
+        <Animated.View
+          entering={FadeInUp.duration(500)}
+          style={[styles.addCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
+        >
+          <Text style={[styles.addTitle, { color: colors.textPrimary }]}>Create Daily Habit</Text>
           <View style={styles.addInputRow}>
             <TextInput
-              style={styles.addInput}
-              placeholder="e.g. 10 mins post-writing..."
-              placeholderTextColor="#64748B"
+              style={[
+                styles.addInput,
+                { backgroundColor: colors.inputBg, color: colors.textPrimary, borderColor: colors.inputBorder },
+              ]}
+              placeholder="e.g. 500ml water before breakfast..."
+              placeholderTextColor={colors.textMuted}
               value={newHabitText}
               onChangeText={setNewHabitText}
             />
-            <TouchableOpacity style={styles.addBtn} onPress={handleAddHabit}>
-              <Ionicons name="add" size={20} color="#FFF" />
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.lime }]} onPress={handleAddHabit} activeOpacity={0.85}>
+              <Ionicons name="add" size={22} color="#0F172A" />
             </TouchableOpacity>
           </View>
           {!isPro && (
-            <Text style={styles.limitNotice}>
+            <Text style={[styles.limitNotice, { color: colors.amber }]}>
               ⚠️ Free Plan: 3 Habit slots limit ({habits.length}/3 used)
             </Text>
           )}
-        </View>
+        </Animated.View>
 
         {/* Habits List */}
         <View style={styles.listSection}>
-          <Text style={styles.sectionHeader}>Today&apos;s Habits</Text>
+          <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>Today&apos;s Habits</Text>
 
-          {habits.map((habit) => {
+          {habits.map((habit, idx) => {
             const lockedForFree = !isPro && habit.isProOnly;
             return (
-              <TouchableOpacity
+              <Animated.View
                 key={habit.id}
-                style={[
-                  styles.habitCard,
-                  habit.completedToday && styles.habitCardCompleted,
-                  lockedForFree && styles.habitCardLocked,
-                ]}
-                onPress={() => {
-                  if (lockedForFree) {
-                    openPaywall('pro_habit');
-                  } else {
-                    toggleHabit(habit.id);
-                  }
-                }}
-                activeOpacity={0.8}
+                entering={FadeInUp.delay(80 + idx * 50).duration(400)}
               >
-                <View style={styles.habitLeft}>
-                  <Ionicons
-                    name={
-                      lockedForFree
-                        ? 'lock-closed'
-                        : habit.completedToday
-                        ? 'checkmark-circle'
-                        : 'ellipse-outline'
+                <TouchableOpacity
+                  style={[
+                    styles.habitCard,
+                    { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
+                    habit.completedToday && {
+                      borderColor: 'rgba(16, 185, 129, 0.4)',
+                      backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : '#F0FDF4',
+                    },
+                    lockedForFree && {
+                      borderColor: 'rgba(245, 158, 11, 0.3)',
+                      backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.06)' : '#FFFBEB',
+                    },
+                  ]}
+                  onPress={() => {
+                    if (lockedForFree) {
+                      triggerHaptic('medium');
+                      openPaywall('pro_habit');
+                    } else {
+                      toggleHabit(habit.id);
                     }
-                    size={22}
-                    color={
-                      lockedForFree
-                        ? '#F59E0B'
-                        : habit.completedToday
-                        ? '#10B981'
-                        : '#64748B'
-                    }
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.habitTitle,
-                        habit.completedToday && styles.habitTitleCompleted,
-                      ]}
-                    >
-                      {habit.title}
-                    </Text>
-                    <View style={styles.categoryPill}>
-                      <Text style={styles.categoryText}>{habit.category}</Text>
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.habitLeft}>
+                    <Ionicons
+                      name={
+                        lockedForFree
+                          ? 'lock-closed'
+                          : habit.completedToday
+                          ? 'checkmark-circle'
+                          : 'ellipse-outline'
+                      }
+                      size={24}
+                      color={
+                        lockedForFree
+                          ? colors.amber
+                          : habit.completedToday
+                          ? colors.emerald
+                          : colors.textMuted
+                      }
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.habitTitle,
+                          { color: colors.textPrimary },
+                          habit.completedToday && styles.habitTitleCompleted,
+                        ]}
+                      >
+                        {habit.title}
+                      </Text>
+                      <View style={[styles.categoryPill, { backgroundColor: colors.inputBg }]}>
+                        <Text style={[styles.categoryText, { color: colors.textSecondary }]}>{habit.category}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
 
-                <View style={styles.habitRight}>
-                  {lockedForFree ? (
-                    <View style={styles.proTag}>
-                      <Text style={styles.proTagText}>PRO</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.streakPill}>
-                      <Ionicons name="flame" size={12} color="#F59E0B" />
-                      <Text style={styles.streakText}>{habit.streak}d</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
+                  <View style={styles.habitRight}>
+                    {lockedForFree ? (
+                      <View style={[styles.proTag, { backgroundColor: colors.amber }]}>
+                        <Text style={styles.proTagText}>PRO</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.streakPill, { backgroundColor: colors.limeGlow }]}>
+                        <Ionicons name="flame" size={13} color={colors.lime} />
+                        <Text style={[styles.streakText, { color: colors.lime }]}>{habit.streak}d</Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
             );
           })}
         </View>
@@ -244,60 +287,50 @@ export default function HabitsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090D16',
   },
   container: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontSize: 22,
+    fontWeight: '900',
   },
   subtitle: {
     fontSize: 13,
-    color: '#94A3B8',
     marginTop: 2,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     gap: 6,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   streakBadgeText: {
-    color: '#F59E0B',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '900',
   },
   addCard: {
-    backgroundColor: '#131C2E',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   addTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontWeight: '900',
     marginBottom: 10,
   },
   addInputRow: {
@@ -306,55 +339,40 @@ const styles = StyleSheet.create({
   },
   addInput: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderRadius: 12,
     paddingHorizontal: 14,
-    height: 44,
-    color: '#F8FAFC',
+    height: 46,
     fontSize: 14,
+    fontWeight: '700',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   addBtn: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: 12,
-    backgroundColor: '#6366F1',
     justifyContent: 'center',
     alignItems: 'center',
   },
   limitNotice: {
     fontSize: 11.5,
-    color: '#F59E0B',
     marginTop: 8,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   listSection: {
-    gap: 12,
+    gap: 10,
   },
   sectionHeader: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontWeight: '900',
     marginBottom: 4,
   },
   habitCard: {
-    backgroundColor: '#131C2E',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  habitCardCompleted: {
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    backgroundColor: 'rgba(16, 185, 129, 0.06)',
-  },
-  habitCardLocked: {
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    backgroundColor: 'rgba(245, 158, 11, 0.06)',
   },
   habitLeft: {
     flexDirection: 'row',
@@ -364,15 +382,13 @@ const styles = StyleSheet.create({
   },
   habitTitle: {
     fontSize: 14.5,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontWeight: '800',
   },
   habitTitleCompleted: {
     textDecorationLine: 'line-through',
-    color: '#94A3B8',
+    opacity: 0.6,
   },
   categoryPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
@@ -381,8 +397,7 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   habitRight: {
     marginLeft: 10,
@@ -391,25 +406,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
   },
   streakText: {
-    color: '#F59E0B',
-    fontSize: 11.5,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '900',
   },
   proTag: {
-    backgroundColor: '#F59E0B',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   proTagText: {
-    color: '#000',
+    color: '#0F172A',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '900',
   },
 });

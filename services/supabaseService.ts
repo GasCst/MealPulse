@@ -64,7 +64,7 @@ export interface CloudMealLog {
   meal_type: string;
   logged_at: string;
   image_url?: string;
-  logging_method?: 'ai_photo' | 'barcode' | 'manual';
+  logging_method?: 'ai_photo' | 'barcode' | 'manual' | 'manual_edit' | 'voice' | string;
   confidence_score?: number;
   item_count?: number;
   unit_weight_g?: number;
@@ -92,22 +92,50 @@ export interface UserBiometricsCloud {
   water_target: number;
 }
 
+export interface DailyActivityCloud {
+  id?: string;
+  user_id: string;
+  log_date: string; // YYYY-MM-DD
+  active_calories: number;
+  steps: number;
+  exercise_minutes: number;
+  source: 'apple_health' | 'health_connect' | 'manual';
+  synced_at?: string;
+}
+
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export class SupabaseService {
   /**
-   * Syncs meal log to cloud database per user
+   * Syncs meal log to cloud database per user (guaranteeing valid Postgres UUID)
    */
   static async saveMealLog(meal: Partial<CloudMealLog> & { user_id: string }): Promise<boolean> {
-    if (!meal.user_id) return false;
+    if (!meal.user_id) {
+      console.warn('[Supabase saveMealLog] Aborted: user_id is missing/empty');
+      return false;
+    }
     try {
+      const isUUID = meal.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meal.id);
+      const validId = isUUID ? meal.id : generateUUID();
       const logObj = {
         ...meal,
+        id: validId,
         logged_at: meal.logged_at || new Date().toISOString(),
       };
       const { error } = await supabase.from('meal_logs').upsert([logObj]);
-      if (!error) return true;
-      console.warn('Supabase saveMealLog notice:', error.message);
+      if (!error) {
+        console.warn(`[Supabase SUCCESS] Saved meal log: "${logObj.food_name}" (${logObj.calories} kcal) for user ${meal.user_id}`);
+        return true;
+      }
+      console.warn('[Supabase saveMealLog ERROR]:', error.message, error.details, error.hint);
     } catch (e) {
-      console.warn('Supabase offline mode, local sync active:', e);
+      console.warn('[Supabase saveMealLog EXCEPTION]:', e);
     }
     return false;
   }
@@ -144,7 +172,40 @@ export class SupabaseService {
    * Fetches user meal history for a specific date (YYYY-MM-DD)
    */
   static async fetchMealLogsByUserAndDate(userId?: string, targetDate?: string): Promise<CloudMealLog[]> {
+    if (targetDate) {
+      const dateKey = typeof targetDate === 'string' && targetDate.includes('-')
+        ? targetDate.split('T')[0]
+        : new Date(targetDate).toISOString().split('T')[0];
+
+      if (!userId) {
+        const guestKey = `@mealpulse_guest_meals_v1_${dateKey}`;
+        const saved = await ExpoGoSafeAsyncStorage.getItem(guestKey);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            return parsed.map((m: any) => ({
+              id: m.id,
+              user_id: 'guest',
+              food_name: m.name,
+              estimated_weight_g: m.weightG || 100,
+              calories: m.calories,
+              protein_g: m.protein,
+              carbs_g: m.carbs,
+              fat_g: m.fat,
+              meal_type: m.category,
+              logged_at: m.time ? `${dateKey}T${m.time}:00` : new Date().toISOString(),
+              image_url: m.imageUri,
+            }));
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      }
+    }
+
     if (!userId) return [];
+
     try {
       let query = supabase.from('meal_logs').select('*').eq('user_id', userId);
 
@@ -181,24 +242,75 @@ export class SupabaseService {
   }
 
   /**
-   * Fetches all past historical meal logs for user
+   * Fetches all past historical meal logs for user (seamlessly merging Supabase cloud DB and local cache)
    */
   static async fetchMealLogsHistory(userId?: string): Promise<CloudMealLog[]> {
-    if (!userId) return [];
-    try {
-      const { data, error } = await supabase
-        .from('meal_logs')
-        .select('*')
-        .eq('user_id', userId)
-        .order('logged_at', { ascending: false });
+    const allMealsMap = new Map<string, CloudMealLog>();
 
-      if (!error && data) {
-        return data as CloudMealLog[];
+    if (userId) {
+      try {
+        const { data, error } = await supabase
+          .from('meal_logs')
+          .select('*')
+          .eq('user_id', userId)
+          .order('logged_at', { ascending: false });
+
+        if (!error && data) {
+          for (const item of data) {
+            allMealsMap.set(item.id, item as CloudMealLog);
+          }
+        } else if (error) {
+          console.warn('Supabase history fetch error:', error.message);
+        }
+      } catch (e) {
+        console.warn('Supabase history fetch error:', e);
       }
-    } catch (e) {
-      console.warn('Supabase history fetch error:', e);
     }
-    return [];
+
+    // Also inspect local storage to include recent/cached meals
+    try {
+      const datesKey = '@mealpulse_all_guest_dates_v1';
+      const datesRaw = await ExpoGoSafeAsyncStorage.getItem(datesKey);
+      const dates: string[] = datesRaw ? JSON.parse(datesRaw) : [];
+
+      // Always include today and past days
+      const todayKey = new Date().toISOString().split('T')[0];
+      if (!dates.includes(todayKey)) {
+        dates.push(todayKey);
+      }
+
+      for (const dKey of dates) {
+        const guestKey = `@mealpulse_guest_meals_v1_${dKey}`;
+        const raw = await ExpoGoSafeAsyncStorage.getItem(guestKey);
+        if (raw) {
+          try {
+            const list = JSON.parse(raw);
+            for (const item of list) {
+              if (!allMealsMap.has(item.id)) {
+                allMealsMap.set(item.id, {
+                  id: item.id,
+                  user_id: userId || 'guest',
+                  food_name: item.name,
+                  estimated_weight_g: item.weightG || 100,
+                  calories: item.calories,
+                  protein_g: item.protein,
+                  carbs_g: item.carbs,
+                  fat_g: item.fat,
+                  meal_type: item.category || 'Dinner',
+                  logged_at: item.time ? `${dKey}T${item.time}:00` : `${dKey}T12:00:00`,
+                  image_url: item.imageUri,
+                  logging_method: 'ai_photo',
+                });
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('Local history load error:', err);
+    }
+
+    return Array.from(allMealsMap.values()).sort((a, b) => (b.logged_at || '').localeCompare(a.logged_at || ''));
   }
 
   /**
@@ -341,27 +453,42 @@ export class SupabaseService {
         console.log(`[CloudSync] Cloud biometrics already exist for user ${userId}. Cloud wins.`);
       }
 
-      // 3. Migrate Today Water Log if missing on cloud
-      const guestWaterKey = `@mealpulse_water_intake_v1_guest_${todayStr}`;
-      const localWaterStr = await ExpoGoSafeAsyncStorage.getItem(guestWaterKey);
-      const localWaterVal = localWaterStr ? parseInt(localWaterStr, 10) : 0;
-
-      if ((!cloudWater || cloudWater.amount_ml === undefined) && localWaterVal > 0) {
-        syncAttemptedCount++;
-        console.log(`[CloudSync] Migrating local guest water log (${localWaterVal} ml) to cloud for date ${todayStr}...`);
-        const targetMl = localData?.waterTarget || 2500;
-        const waterOk = await this.saveWaterLog(userId, todayStr, localWaterVal, targetMl);
-        if (waterOk) {
-          syncSuccessCount++;
-          keysToRemoveOnAtomicSuccess.push(guestWaterKey);
-        } else {
-          console.warn(`[CloudSync ERROR] Water log upload failed for date ${todayStr}`);
-          allUpsertsSucceeded = false;
+      // 3. Migrate All Local Guest Water Logs to Cloud
+      let waterDates: string[] = [todayStr];
+      try {
+        const rawDates = await ExpoGoSafeAsyncStorage.getItem('@mealpulse_all_guest_water_dates_v1');
+        if (rawDates) {
+          const parsed = JSON.parse(rawDates);
+          if (Array.isArray(parsed)) {
+            waterDates = Array.from(new Set([...waterDates, ...parsed]));
+          }
         }
-      } else if (cloudWater) {
-        console.log(`[CloudSync] Cloud water log already exists for date ${todayStr}. Cloud wins.`);
-        keysToRemoveOnAtomicSuccess.push(guestWaterKey);
+      } catch {}
+
+      for (const wDate of waterDates) {
+        const guestWaterKey = `@mealpulse_water_intake_v1_guest_${wDate}`;
+        const localWaterStr = await ExpoGoSafeAsyncStorage.getItem(guestWaterKey);
+        const localWaterVal = localWaterStr ? parseInt(localWaterStr, 10) : 0;
+        const cloudW = await this.getWaterLog(userId, wDate);
+
+        if ((!cloudW || cloudW.amount_ml === undefined) && localWaterVal > 0) {
+          syncAttemptedCount++;
+          console.log(`[CloudSync] Migrating local guest water log (${localWaterVal} ml) to cloud for date ${wDate}...`);
+          const targetMl = localData?.waterTarget || 2500;
+          const waterOk = await this.saveWaterLog(userId, wDate, localWaterVal, targetMl);
+          if (waterOk) {
+            syncSuccessCount++;
+            keysToRemoveOnAtomicSuccess.push(guestWaterKey);
+          } else {
+            console.warn(`[CloudSync ERROR] Water log upload failed for date ${wDate}`);
+            allUpsertsSucceeded = false;
+          }
+        } else if (cloudW) {
+          console.log(`[CloudSync] Cloud water log already exists for date ${wDate}. Cloud wins.`);
+          keysToRemoveOnAtomicSuccess.push(guestWaterKey);
+        }
       }
+      keysToRemoveOnAtomicSuccess.push('@mealpulse_all_guest_water_dates_v1');
 
       // 4. Migrate any Guest Meals stored locally to user's Supabase account
       const guestMealKey = `@mealpulse_guest_meals_v1_${todayStr}`;
@@ -713,5 +840,73 @@ export class SupabaseService {
       console.warn('saveJournalEntry error:', e);
     }
     return null;
+  }
+
+  /**
+   * Upserts daily activity log (burned calories, steps, exercise minutes) with deduplication on (user_id, log_date)
+   */
+  static async upsertDailyActivity(activity: DailyActivityCloud): Promise<boolean> {
+    if (!activity.user_id || !activity.log_date) return false;
+    try {
+      const payload = {
+        user_id: activity.user_id,
+        log_date: activity.log_date,
+        active_calories: activity.active_calories || 0,
+        steps: activity.steps || 0,
+        exercise_minutes: activity.exercise_minutes || 0,
+        source: activity.source || 'health_connect',
+        synced_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('daily_activity_logs')
+        .upsert([payload], { onConflict: 'user_id,log_date' });
+
+      if (!error) return true;
+      console.warn('Supabase upsertDailyActivity notice:', error.message);
+    } catch (e) {
+      console.warn('Supabase offline mode, local activity sync active:', e);
+    }
+    return false;
+  }
+
+  /**
+   * Fetches daily activity log for a specific user and date
+   */
+  static async getDailyActivity(userId: string, dateStr: string): Promise<DailyActivityCloud | null> {
+    if (!userId) return null;
+    try {
+      const { data, error } = await supabase
+        .from('daily_activity_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('log_date', dateStr)
+        .maybeSingle();
+
+      if (!error && data) return data;
+    } catch (e) {
+      console.warn('Supabase getDailyActivity notice:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Fetches recent activity history (e.g. past 7-30 days) for analytics
+   */
+  static async getActivityHistory(userId: string, limitDays: number = 7): Promise<DailyActivityCloud[]> {
+    if (!userId) return [];
+    try {
+      const { data, error } = await supabase
+        .from('daily_activity_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('log_date', { ascending: false })
+        .limit(limitDays);
+
+      if (!error && data) return data;
+    } catch (e) {
+      console.warn('Supabase getActivityHistory notice:', e);
+    }
+    return [];
   }
 }

@@ -51,6 +51,25 @@ export class AuthService {
   }
 
   /**
+   * Signs in user anonymously in Supabase Cloud DB so Guest has a persistent user_id
+   */
+  static async signInAnonymously() {
+    console.log('[Auth Step 1] Initiating Anonymous Guest Sign-In...');
+    try {
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if (error) {
+        console.warn('[Auth Anonymous Notice]:', error.message);
+        return { user: null, error: error.message };
+      }
+      console.log(`[Auth Anonymous SUCCESS] Anonymous user session active with ID: ${data.user?.id}`);
+      return { user: data.user, error: null };
+    } catch (err: any) {
+      console.warn('[Auth Anonymous Exception]:', err.message);
+      return { user: null, error: err.message };
+    }
+  }
+
+  /**
    * Real Google OAuth Sign-In via Supabase Auth & WebBrowser with full debug logging
    */
   static async signInWithGoogle() {

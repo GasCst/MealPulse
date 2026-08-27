@@ -6,6 +6,8 @@ import { RevenueCatService } from '@/services/revenueCatService';
 import { supabase, SupabaseService, ExpoGoSafeAsyncStorage } from '@/services/supabaseService';
 import { PurchaseService } from '@/services/purchaseService';
 import { AuthService } from '@/services/authService';
+import { HealthSyncService, DailyHealthActivity, HealthSyncStatus } from '@/services/healthSyncService';
+import { UnitSystem } from '@/services/unitService';
 
 export type PlanType = 'weekly' | 'monthly' | 'yearly' | 'jackpot';
 export type AppMode = 'end_user' | 'creator_admin';
@@ -25,6 +27,7 @@ export interface UserBiometrics {
   targetProtein: number;
   targetCarbs: number;
   targetFat: number;
+  unitSystem?: UnitSystem;
 }
 
 interface SubscriptionContextType {
@@ -47,12 +50,33 @@ interface SubscriptionContextType {
   waterTarget: number;
   primaryGoal: string;
   biometrics: UserBiometrics | null;
+  unitSystem: UnitSystem;
   scanAccuracy: 'Fast' | 'Balanced' | 'Precise';
   autoPortionEstimation: boolean;
   multiItemDetection: boolean;
   saveScansToCloud: boolean;
   isWriting: boolean;
   
+  // Health & Wearables State
+  isHealthSyncEnabled: boolean;
+  includeBurnedInBudget: boolean;
+  burnedCaloriesToday: number;
+  stepsToday: number;
+  exerciseMinutesToday: number;
+  lastHealthSyncTime: string | null;
+  healthSyncStatus: HealthSyncStatus;
+  dailyActivitiesByDate: Record<string, DailyHealthActivity>;
+  getActivityForDate: (dateStr: string) => Promise<DailyHealthActivity>;
+  getActivityForDateSync: (dateStr: string) => { activeCalories: number; steps: number; exerciseMinutes: number };
+
+  // Hydration / Water State
+  waterIntakeToday: number;
+  waterIntakeByDate: Record<string, number>;
+  getWaterIntakeForDateSync: (dateStr: string) => number;
+  loadWaterIntakeForDate: (dateStr: string) => Promise<number>;
+  updateWaterIntake: (delta: number, targetDateStr?: string) => Promise<void>;
+  loadWaterIntake: () => Promise<void>;
+
   // Actions
   beginWrite: () => void;
   endWrite: () => void;
@@ -69,12 +93,23 @@ interface SubscriptionContextType {
   setTargetCalories: (kcal: number) => Promise<void>;
   setWaterTarget: (ml: number) => Promise<void>;
   setPrimaryGoal: (goal: string) => Promise<void>;
+  setUnitSystem: (system: UnitSystem) => Promise<void>;
   saveBiometrics: (bio: UserBiometrics) => Promise<void>;
   updateBiometrics: (bio: Partial<UserBiometrics>) => Promise<void>;
   setScanAccuracy: (accuracy: 'Fast' | 'Balanced' | 'Precise') => Promise<void>;
   setAutoPortionEstimation: (enabled: boolean) => Promise<void>;
   setMultiItemDetection: (enabled: boolean) => Promise<void>;
   setSaveScansToCloud: (enabled: boolean) => Promise<void>;
+  setHealthSyncEnabled: (enabled: boolean) => Promise<boolean>;
+  setIncludeBurnedInBudget: (enabled: boolean) => Promise<void>;
+  triggerHealthSync: (dateInput?: string) => Promise<DailyHealthActivity>;
+  addManualBurnedCalories: (
+    typeOrKcal: string | number,
+    kcalOrSteps?: number,
+    stepsOrMinutes?: number,
+    minutes?: number,
+    dateStr?: string
+  ) => Promise<void>;
   presentRevenueCatPaywall: () => Promise<boolean>;
   presentCustomerCenter: () => Promise<void>;
 }
@@ -99,18 +134,37 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [waterTarget, setWaterTargetState] = useState<number>(2500);
   const [primaryGoal, setPrimaryGoalState] = useState<string>('Lose Weight');
   const [biometrics, setBiometricsState] = useState<UserBiometrics | null>(null);
+  const [unitSystem, setUnitSystemState] = useState<UnitSystem>('metric');
   
   const [scanAccuracy, setScanAccuracyState] = useState<'Fast' | 'Balanced' | 'Precise'>('Balanced');
   const [autoPortionEstimation, setAutoPortionEstimationState] = useState<boolean>(true);
   const [multiItemDetection, setMultiItemDetectionState] = useState<boolean>(true);
   const [saveScansToCloud, setSaveScansToCloudState] = useState<boolean>(false);
   
+  // Health & Wearables State
+  const [isHealthSyncEnabled, setIsHealthSyncEnabledState] = useState<boolean>(false);
+  const [includeBurnedInBudget, setIncludeBurnedInBudgetState] = useState<boolean>(true);
+  const [burnedCaloriesToday, setBurnedCaloriesToday] = useState<number>(0);
+  const [stepsToday, setStepsToday] = useState<number>(0);
+  const [exerciseMinutesToday, setExerciseMinutesToday] = useState<number>(0);
+  const [lastHealthSyncTime, setLastHealthSyncTime] = useState<string | null>(null);
+  const [healthSyncStatus, setHealthSyncStatus] = useState<HealthSyncStatus>('idle');
+  const [dailyActivitiesByDate, setDailyActivitiesByDate] = useState<Record<string, DailyHealthActivity>>({});
+
   // Simulated MRR Engine metrics for demonstration & goal tracking
   const [simulatedSubscribers, setSimulatedSubscribers] = useState<number>(84);
   const maxFreeUsage = 3;
 
   useEffect(() => {
     loadSavedState();
+
+    // 0. Ensure user has a valid Supabase session (either existing or Anonymous Guest)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) {
+        console.log('[Supabase Auth] No active session found, signing in anonymously for Guest user...');
+        await AuthService.signInAnonymously();
+      }
+    });
 
     // 1. Initialize RevenueCat SDK
     PurchaseService.init().then((info) => {
@@ -128,7 +182,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setIsPro(isEntitled);
     });
 
-    // 3. Listen to Supabase Auth state changes (Google OAuth, Email Login, Logout)
+    // 3. Listen to Supabase Auth state changes (Google OAuth, Email Login, Anonymous, Logout)
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setUser(session.user);
@@ -162,8 +216,9 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           await SupabaseService.updateUserProfile(session.user.id, { is_pro: true });
         }
 
-        // PRESERVE ONBOARDING: Local state OR Cloud profile
-        const finalOnboarding = hasCompletedOnboarding || (profile?.has_completed_onboarding ?? false);
+        // PRESERVE ONBOARDING: Local explicit flag OR Cloud profile (fresh installs always start false)
+        const localOnboarding = await ExpoGoSafeAsyncStorage.getItem('@mealpulse_onboarding_completed_v2');
+        const finalOnboarding = (localOnboarding === 'true') || (profile?.has_completed_onboarding === true);
         setHasCompletedOnboardingState(finalOnboarding);
         if (finalOnboarding) {
           await SupabaseService.updateUserProfile(session.user.id, { has_completed_onboarding: true });
@@ -198,6 +253,20 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (cloudBio.target_calories) setTargetCaloriesState(Number(cloudBio.target_calories));
           if (cloudBio.water_target) setWaterTargetState(Number(cloudBio.water_target));
           if (cloudBio.primary_goal) setPrimaryGoalState(cloudBio.primary_goal);
+        }
+
+        // Fetch today's health/wearable activity from Supabase Cloud
+        try {
+          const todayStr = HealthSyncService.getTodayDateString();
+          const cloudActivity = await SupabaseService.getDailyActivity(session.user.id, todayStr);
+          if (cloudActivity) {
+            setBurnedCaloriesToday(Number(cloudActivity.active_calories || 0));
+            setStepsToday(Number(cloudActivity.steps || 0));
+            setExerciseMinutesToday(Number(cloudActivity.exercise_minutes || 0));
+            if (cloudActivity.synced_at) setLastHealthSyncTime(cloudActivity.synced_at);
+          }
+        } catch (e) {
+          console.warn('[AuthSync] getDailyActivity notice:', e);
         }
       } else {
         // Sign Out / Guest user mode: Reset all memory & account states to Guest defaults!
@@ -251,25 +320,155 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const loadSavedState = async () => {
     try {
       const saved = await ExpoGoSafeAsyncStorage.getItem(STORAGE_KEY);
+      const onboardingFlag = await ExpoGoSafeAsyncStorage.getItem('@mealpulse_onboarding_completed_v2');
+      
+      // Explicitly check onboarding status (fresh installs will be null/false)
+      setHasCompletedOnboardingState(onboardingFlag === 'true');
+
       if (saved) {
         const data = JSON.parse(saved);
-        setHasCompletedOnboardingState(data.hasCompletedOnboarding ?? false);
         if (data.hasSeenSpinWheel !== undefined) setHasSeenSpinWheelState(data.hasSeenSpinWheel);
         if (data.biometrics) setBiometricsState(data.biometrics);
         if (data.targetCalories) setTargetCaloriesState(data.targetCalories);
         if (data.waterTarget) setWaterTargetState(data.waterTarget);
         if (data.primaryGoal) setPrimaryGoalState(data.primaryGoal);
+        if (data.unitSystem === 'imperial' || data.unitSystem === 'metric') setUnitSystemState(data.unitSystem);
         if (data.scanAccuracy) setScanAccuracyState(data.scanAccuracy);
         if (data.autoPortionEstimation !== undefined) setAutoPortionEstimationState(data.autoPortionEstimation);
         if (data.multiItemDetection !== undefined) setMultiItemDetectionState(data.multiItemDetection);
         if (data.saveScansToCloud !== undefined) setSaveScansToCloudState(data.saveScansToCloud);
       }
+
+      // Check explicit unit system key
+      const explicitUnit = await ExpoGoSafeAsyncStorage.getItem('@mealpulse_unit_system_v1');
+      if (explicitUnit === 'imperial' || explicitUnit === 'metric') {
+        setUnitSystemState(explicitUnit);
+      }
+
+      // Load HealthKit & Health Connect preferences & cached activities for recent days
+      const healthSettings = await HealthSyncService.getSettings();
+      setIsHealthSyncEnabledState(healthSettings.isEnabled);
+      setIncludeBurnedInBudgetState(healthSettings.includeInBudget);
+
+      const todayStr = HealthSyncService.getTodayDateString();
+      const cachedToday = await HealthSyncService.getCachedActivity(todayStr);
+      if (cachedToday) {
+        setBurnedCaloriesToday(cachedToday.activeCalories);
+        setStepsToday(cachedToday.steps);
+        setExerciseMinutesToday(cachedToday.exerciseMinutes);
+        setLastHealthSyncTime(cachedToday.lastSyncedAt);
+        setDailyActivitiesByDate((prev) => ({ ...prev, [todayStr]: cachedToday }));
+      }
+
+      // Sync recent 7 days in background so yesterday and past days are immediately populated
+      HealthSyncService.syncRecentDaysActivity(user?.id, 7).then((recentMap) => {
+        setDailyActivitiesByDate((prev) => ({ ...prev, ...recentMap }));
+        if (recentMap[todayStr]) {
+          const act = recentMap[todayStr];
+          setBurnedCaloriesToday(act.activeCalories);
+          setStepsToday(act.steps);
+          setExerciseMinutesToday(act.exerciseMinutes);
+          setLastHealthSyncTime(act.lastSyncedAt);
+        }
+      }).catch(() => {});
+      // Load Water Intake for today
+      await loadWaterIntake();
     } catch (e) {
       console.warn('Failed to load subscription state:', e);
     } finally {
       setIsLoaded(true);
     }
   };
+
+  const [waterIntakeByDate, setWaterIntakeByDate] = useState<Record<string, number>>({});
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const waterIntakeToday = waterIntakeByDate[todayDateStr] ?? 0;
+
+  const getWaterIntakeForDateSync = (dateStr: string): number => {
+    return waterIntakeByDate[dateStr] ?? 0;
+  };
+
+  const loadWaterIntakeForDate = async (dateStr: string): Promise<number> => {
+    try {
+      if (user?.id) {
+        const cloudLog = await SupabaseService.getWaterLog(user.id, dateStr);
+        if (cloudLog && cloudLog.amount_ml !== undefined) {
+          const val = Number(cloudLog.amount_ml);
+          setWaterIntakeByDate((prev) => ({ ...prev, [dateStr]: val }));
+          return val;
+        }
+      }
+      const storageKey = user?.id
+        ? `@mealpulse_water_intake_v1_${user.id}_${dateStr}`
+        : `@mealpulse_water_intake_v1_guest_${dateStr}`;
+      const saved = await ExpoGoSafeAsyncStorage.getItem(storageKey);
+      const val = saved ? parseInt(saved, 10) || 0 : 0;
+      setWaterIntakeByDate((prev) => ({ ...prev, [dateStr]: val }));
+      return val;
+    } catch (e) {
+      console.warn(`Error loading water intake for date ${dateStr}:`, e);
+      return 0;
+    }
+  };
+
+  const loadWaterIntake = async () => {
+    try {
+      const today = new Date();
+      const datesToLoad: string[] = [];
+      for (let i = -7; i <= 3; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        datesToLoad.push(`${year}-${month}-${day}`);
+      }
+      await Promise.all(datesToLoad.map((dStr) => loadWaterIntakeForDate(dStr)));
+    } catch (e) {
+      console.warn('Error batch loading water intake:', e);
+    }
+  };
+
+  const updateWaterIntake = async (delta: number, targetDateStr?: string) => {
+    beginWrite();
+    try {
+      const dateStr = targetDateStr || new Date().toISOString().split('T')[0];
+      const currentVal = waterIntakeByDate[dateStr] ?? 0;
+      const nextVal = Math.max(0, Math.min(6000, currentVal + delta));
+
+      setWaterIntakeByDate((prev) => ({
+        ...prev,
+        [dateStr]: nextVal,
+      }));
+
+      const storageKey = user?.id
+        ? `@mealpulse_water_intake_v1_${user.id}_${dateStr}`
+        : `@mealpulse_water_intake_v1_guest_${dateStr}`;
+      await ExpoGoSafeAsyncStorage.setItem(storageKey, nextVal.toString());
+
+      try {
+        const datesKey = '@mealpulse_all_guest_water_dates_v1';
+        const raw = await ExpoGoSafeAsyncStorage.getItem(datesKey);
+        const dates: string[] = raw ? JSON.parse(raw) : [];
+        if (!dates.includes(dateStr)) {
+          dates.push(dateStr);
+          await ExpoGoSafeAsyncStorage.setItem(datesKey, JSON.stringify(dates));
+        }
+      } catch {}
+
+      if (user?.id) {
+        await SupabaseService.saveWaterLog(user.id, dateStr, nextVal, waterTarget || 2500);
+      }
+    } catch (e) {
+      console.warn('Error saving water intake:', e);
+    } finally {
+      endWrite();
+    }
+  };
+
+  useEffect(() => {
+    loadWaterIntake();
+  }, [user]);
 
   const saveState = async (updates: Partial<{
     isPro: boolean;
@@ -282,6 +481,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     waterTarget: number;
     primaryGoal: string;
     biometrics: UserBiometrics | null;
+    unitSystem: UnitSystem;
     scanAccuracy: 'Fast' | 'Balanced' | 'Precise';
     autoPortionEstimation: boolean;
     multiItemDetection: boolean;
@@ -299,6 +499,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         waterTarget,
         primaryGoal,
         biometrics,
+        unitSystem,
         scanAccuracy,
         autoPortionEstimation,
         multiItemDetection,
@@ -420,6 +621,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const setCompletedOnboarding = async (status: boolean) => {
     setHasCompletedOnboardingState(status);
+    await ExpoGoSafeAsyncStorage.setItem('@mealpulse_onboarding_completed_v2', status ? 'true' : 'false');
     if (user?.id) {
       await SupabaseService.updateUserProfile(user.id, { has_completed_onboarding: status });
     }
@@ -459,6 +661,18 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await SupabaseService.saveUserBiometrics(user.id, { ...biometrics, primaryGoal: goal });
     }
     await saveState({ primaryGoal: goal });
+  };
+
+  const setUnitSystem = async (system: UnitSystem) => {
+    setUnitSystemState(system);
+    await ExpoGoSafeAsyncStorage.setItem('@mealpulse_unit_system_v1', system);
+    if (user?.id) {
+      await SupabaseService.updateUserProfile(user.id, { unit_system: system } as any);
+      if (biometrics) {
+        await SupabaseService.saveUserBiometrics(user.id, { ...biometrics, unitSystem: system });
+      }
+    }
+    await saveState({ unitSystem: system });
   };
 
   const saveBiometrics = async (bio: UserBiometrics) => {
@@ -515,6 +729,128 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await SupabaseService.updateUserProfile(user.id, { save_scans_to_cloud: enabled });
     }
     await saveState({ saveScansToCloud: enabled });
+  };
+
+  const getActivityForDate = async (dateStr: string): Promise<DailyHealthActivity> => {
+    if (dailyActivitiesByDate[dateStr]) {
+      return dailyActivitiesByDate[dateStr];
+    }
+    const act = await HealthSyncService.fetchActivityForDate(dateStr, user?.id);
+    setDailyActivitiesByDate((prev) => ({ ...prev, [dateStr]: act }));
+    return act;
+  };
+
+  const getActivityForDateSync = (dateStr: string) => {
+    if (dailyActivitiesByDate[dateStr]) {
+      return {
+        activeCalories: dailyActivitiesByDate[dateStr].activeCalories,
+        steps: dailyActivitiesByDate[dateStr].steps,
+        exerciseMinutes: dailyActivitiesByDate[dateStr].exerciseMinutes,
+      };
+    }
+    const todayStr = HealthSyncService.getTodayDateString();
+    if (dateStr === todayStr) {
+      return {
+        activeCalories: burnedCaloriesToday,
+        steps: stepsToday,
+        exerciseMinutes: exerciseMinutesToday,
+      };
+    }
+    return { activeCalories: 0, steps: 0, exerciseMinutes: 0 };
+  };
+
+  const triggerHealthSync = async (dateInput?: string): Promise<DailyHealthActivity> => {
+    setHealthSyncStatus('syncing');
+    const targetDateStr = dateInput || HealthSyncService.getTodayDateString();
+    const isTargetToday = targetDateStr === HealthSyncService.getTodayDateString();
+
+    try {
+      // 1. Sync requested date
+      const activity = await HealthSyncService.syncDailyActivity(user?.id, targetDateStr);
+      setDailyActivitiesByDate((prev) => ({ ...prev, [targetDateStr]: activity }));
+
+      if (isTargetToday) {
+        setBurnedCaloriesToday(activity.activeCalories);
+        setStepsToday(activity.steps);
+        setExerciseMinutesToday(activity.exerciseMinutes);
+        setLastHealthSyncTime(activity.lastSyncedAt);
+      }
+
+      // 2. Also background sync recent 7 days to Supabase and cache
+      HealthSyncService.syncRecentDaysActivity(user?.id, 7).then((recentMap) => {
+        setDailyActivitiesByDate((prev) => ({ ...prev, ...recentMap }));
+      }).catch(() => {});
+
+      setHealthSyncStatus('synced');
+      return activity;
+    } catch (e) {
+      console.warn('[SubscriptionContext] triggerHealthSync error:', e);
+      setHealthSyncStatus('error');
+      const fallback = (await HealthSyncService.getCachedActivity(targetDateStr)) || {
+        activeCalories: 0,
+        steps: 0,
+        exerciseMinutes: 0,
+        lastSyncedAt: new Date().toISOString(),
+        source: 'manual' as const,
+      };
+      return fallback;
+    }
+  };
+
+  const setHealthSyncEnabled = async (enabled: boolean): Promise<boolean> => {
+    if (enabled) {
+      const granted = await HealthSyncService.requestPermissions();
+      if (!granted) {
+        setHealthSyncStatus('unauthorized');
+        return false;
+      }
+    }
+    setIsHealthSyncEnabledState(enabled);
+    await HealthSyncService.saveSettings(enabled, includeBurnedInBudget);
+    if (enabled) {
+      await triggerHealthSync();
+    }
+    return true;
+  };
+
+  const setIncludeBurnedInBudget = async (enabled: boolean): Promise<void> => {
+    setIncludeBurnedInBudgetState(enabled);
+    await HealthSyncService.saveSettings(isHealthSyncEnabled, enabled);
+  };
+
+  const addManualBurnedCalories = async (
+    typeOrKcal: string | number,
+    kcalOrSteps?: number,
+    stepsOrMinutes?: number,
+    minutes?: number,
+    dateStr?: string
+  ): Promise<void> => {
+    let workoutType = 'Workout';
+    let cal = 0;
+    let stp = 0;
+    let min = 0;
+
+    if (typeof typeOrKcal === 'string') {
+      workoutType = typeOrKcal;
+      cal = kcalOrSteps || 0;
+      stp = stepsOrMinutes || 0;
+      min = minutes || 0;
+    } else {
+      cal = typeOrKcal || 0;
+      stp = kcalOrSteps || 0;
+      min = stepsOrMinutes || 0;
+    }
+
+    const targetDate = dateStr || HealthSyncService.getTodayDateString();
+    const updated = await HealthSyncService.addManualActivity(workoutType, cal, stp, min, user?.id, targetDate);
+    setDailyActivitiesByDate((prev) => ({ ...prev, [targetDate]: updated }));
+
+    if (targetDate === HealthSyncService.getTodayDateString()) {
+      setBurnedCaloriesToday(updated.activeCalories);
+      setStepsToday(updated.steps);
+      setExerciseMinutesToday(updated.exerciseMinutes);
+      setLastHealthSyncTime(updated.lastSyncedAt);
+    }
   };
 
   // Calculate MRR based on active subscribers
@@ -583,13 +919,31 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         appMode,
         targetCalories,
         waterTarget,
+        waterIntakeToday,
+        waterIntakeByDate,
+        getWaterIntakeForDateSync,
+        loadWaterIntakeForDate,
+        updateWaterIntake,
+        loadWaterIntake,
         primaryGoal,
         biometrics,
+        unitSystem,
+        setUnitSystem,
         scanAccuracy,
         autoPortionEstimation,
         multiItemDetection,
         saveScansToCloud,
         isWriting,
+        isHealthSyncEnabled,
+        includeBurnedInBudget,
+        burnedCaloriesToday,
+        stepsToday,
+        exerciseMinutesToday,
+        lastHealthSyncTime,
+        healthSyncStatus,
+        dailyActivitiesByDate,
+        getActivityForDate,
+        getActivityForDateSync,
         beginWrite,
         endWrite,
         signOutSafe,
@@ -611,6 +965,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setAutoPortionEstimation,
         setMultiItemDetection,
         setSaveScansToCloud,
+        setHealthSyncEnabled,
+        setIncludeBurnedInBudget,
+        triggerHealthSync,
+        addManualBurnedCalories,
         presentRevenueCatPaywall,
         presentCustomerCenter,
       }}

@@ -47,3 +47,10 @@ app-example
 # temporary ad logs
 android/*.txt
 *.txt
+
+# local properties & keystores
+local.properties
+*.keystore
+!android/app/debug.keystore
+.tmp/
+ag-stop-probe.json

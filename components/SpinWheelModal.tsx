@@ -269,7 +269,7 @@ export const SpinWheelModal: React.FC<SpinWheelModalProps> = ({ visible, onClose
               <View style={styles.resultLose}>
                 <Text style={styles.loseTitle}>So close! 😩</Text>
                 <Text style={styles.loseSub}>
-                  You landed on Try Again — good news, you've got one more spin.
+                  {"You landed on Try Again — good news, you've got one more spin."}
                 </Text>
               </View>
             )}

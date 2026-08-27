@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface NotificationModalProps {
   visible: boolean;
@@ -46,6 +47,7 @@ const NOTIFICATIONS = [
 ];
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({ visible, onClose }) => {
+  const { t } = useLanguage();
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <SafeAreaView style={styles.safeArea}>
@@ -53,13 +55,13 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ visible, o
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Ionicons name="close" size={24} color="#0F172A" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications Center</Text>
+          <Text style={styles.headerTitle}>{t('notifications_center')}</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Notifications</Text>
+            <Text style={styles.sectionTitle}>{t('recent_notifications')}</Text>
             <Text style={styles.badgeCount}>2 New</Text>
           </View>
 

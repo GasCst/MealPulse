@@ -2,7 +2,7 @@
   "expo": {
     "name": "MealPulse AI: AI Calorie Counter",
     "slug": "mealpulse-ai",
-    "version": "2.1.1",
+    "version": "2.3.3",
     "orientation": "portrait",
     "icon": "./assets/icona_nuova.png",
     "scheme": "mealpulse",
@@ -10,11 +10,16 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mealpulse.app"
+      "bundleIdentifier": "com.mealpulse.app",
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "MealPulse AI accesses your active energy burned and steps to accurately calculate your daily calorie deficit and remaining nutrition budget.",
+        "NSHealthUpdateUsageDescription": "MealPulse AI updates your nutrition and calorie data to keep your health records synchronized.",
+        "NSMicrophoneUsageDescription": "MealPulse AI uses the microphone to record your spoken meal descriptions and automatically calculate nutrition with Gemini AI."
+      }
     },
     "android": {
       "package": "com.mealpulse.app",
-      "versionCode": 58,
+      "versionCode": 101,
       "adaptiveIcon": {
         "backgroundColor": "#BEF264",
         "foregroundImage": "./assets/icona_nuova.png",
@@ -22,7 +27,13 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_EXERCISE"
+      ]
     },
     "web": {
       "output": "static",
@@ -49,7 +60,8 @@
           "androidAppId": "ca-app-pub-3077938552594114~7408470274",
           "android_app_id": "ca-app-pub-3077938552594114~7408470274"
         }
-      ]
+      ],
+      "react-native-health-connect"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useTheme } from '@/context/ThemeContext';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
@@ -18,6 +19,7 @@ interface AdBannerProps {
 
 export const AdBanner: React.FC<AdBannerProps> = ({ location = 'general' }) => {
   const { isPro, openPaywall } = useSubscription();
+  const { isDarkMode, colors } = useTheme();
   const [adFailed, setAdFailed] = useState(false);
 
   // Hide ads completely for PRO subscribers!
@@ -45,9 +47,9 @@ export const AdBanner: React.FC<AdBannerProps> = ({ location = 'general' }) => {
           />
         </View>
       ) : (
-        <View style={styles.adContainer}>
-          <View style={styles.adHeader}>
-            <View style={styles.adBadge}>
+        <View style={[styles.adContainer, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+          <View style={[styles.adHeader, { borderBottomColor: colors.cardBorder }]}>
+            <View style={[styles.adBadge, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
               <Text style={styles.adBadgeText}>ADVERTISEMENT</Text>
             </View>
             <TouchableOpacity
@@ -61,19 +63,19 @@ export const AdBanner: React.FC<AdBannerProps> = ({ location = 'general' }) => {
           </View>
 
           <View style={styles.adBody}>
-            <View style={styles.adIconBox}>
+            <View style={[styles.adIconBox, { backgroundColor: isDarkMode ? '#1F331A' : '#F7FEE7' }]}>
               <Ionicons name="sparkles" size={18} color="#84CC16" />
             </View>
             <View style={styles.adTextBox}>
-              <Text style={styles.adTitle}>Upgrade to MealPulse PRO</Text>
-              <Text style={styles.adSub}>Get Unlimited AI Scans & 100% Ad-Free Experience!</Text>
+              <Text style={[styles.adTitle, { color: colors.textPrimary }]}>Upgrade to MealPulse PRO</Text>
+              <Text style={[styles.adSub, { color: colors.textSecondary }]}>Get Unlimited AI Scans & 100% Ad-Free Experience!</Text>
             </View>
             <TouchableOpacity
-              style={styles.ctaBtn}
+              style={[styles.ctaBtn, { backgroundColor: isDarkMode ? '#BEF264' : '#0F172A' }]}
               onPress={() => openPaywall('ad_banner_cta')}
               activeOpacity={0.85}
             >
-              <Text style={styles.ctaBtnText}>Go Ad-Free</Text>
+              <Text style={[styles.ctaBtnText, { color: isDarkMode ? '#0F172A' : '#BEF264' }]}>Go Ad-Free</Text>
             </TouchableOpacity>
           </View>
         </View>
