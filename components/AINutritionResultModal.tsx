@@ -200,6 +200,14 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
               </View>
             </View>
           </View>
+
+          {/* Medical Disclaimer */}
+          <View style={[styles.medicalNoteBox, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9', borderColor: isDarkMode ? '#334155' : '#E2E8F0' }]}>
+            <Ionicons name="medkit-outline" size={14} color={colors.lime} style={{ marginTop: 2 }} />
+            <Text style={[styles.medicalNoteText, { color: colors.textSecondary }]}>
+              {t('medical_disclaimer_text')}
+            </Text>
+          </View>
         </ScrollView>
 
         {/* Bottom Confirm Button */}
@@ -396,5 +404,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
+  },
+  medicalNoteBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 4,
+    marginBottom: 80,
+  },
+  medicalNoteText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 15,
   },
 });

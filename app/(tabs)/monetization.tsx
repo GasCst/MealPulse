@@ -570,6 +570,17 @@ export default function MonetizationScreen() {
 
         </View>
 
+        {/* Medical & Healthcare Disclaimer */}
+        <View style={[styles.medicalCard, { backgroundColor: isDarkMode ? '#17221C' : '#F1F5F9', borderColor: isDarkMode ? '#243A2E' : '#E2E8F0' }]}>
+          <View style={styles.medicalHead}>
+            <Ionicons name="medkit-outline" size={16} color={theme.limeDeep} />
+            <Text style={[styles.medicalTitle, { color: theme.textPrimary }]}>{t('medical_disclaimer_title')}</Text>
+          </View>
+          <Text style={[styles.medicalBody, { color: theme.textMuted }]}>
+            {t('medical_disclaimer_text')}
+          </Text>
+        </View>
+
         {/* Privacy Note */}
         <View style={styles.dividerNote}>
           <Ionicons name="lock-closed" size={14} color={theme.textMuted} style={styles.lockIcon} />
@@ -1055,5 +1066,27 @@ const styles = StyleSheet.create({
   segmentText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  medicalCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 20,
+    marginBottom: 4,
+    gap: 6,
+  },
+  medicalHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  medicalTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  medicalBody: {
+    fontSize: 11.5,
+    lineHeight: 16,
   },
 });

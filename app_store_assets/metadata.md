@@ -1,56 +1,51 @@
-# MealPulse AI: App Store Submission Assets & Growth Marketing Playbook
+# MealPulse AI: Google Play Store & App Store Submission Metadata
 
 ---
 
-## 📱 App Store Metadata
+## 📱 Google Play Store Listing (Compliance with Health Content & Services Policy)
 
-- **App Name**: MealPulse AI: Calorie Counter & Macro Camera Scanner
-- **Subtitle**: Snap plate photos for instant AI macros & calorie tracking
-- **Category**: Health & Fitness / Food & Drink
-- **Primary Keywords**: `calorie counter`, `ai camera scanner`, `macro tracker`, `food photo recognition`, `cal ai alternative`, `diet tracker`
+### 🏷️ Titolo App / App Title (Max 30 caratteri):
+`MealPulse: AI Calorie Counter`
+
+### 📌 Breve Descrizione / Short Description (Max 80 caratteri):
+`AI calorie counter & macro tracker. Snap food photos for instant nutrition logs!`
 
 ---
 
-## 📝 Promotional Text & Description
+### 📝 Descrizione Completa / Full Description (en-US):
+```text
+MealPulse AI is the smart, effortless way to track your daily food intake, calories, and macronutrients using artificial intelligence photo recognition.
 
-### Promotional Text (170 characters max):
-> Snap any meal or fruit photo! MealPulse AI instantly estimates calories, protein, carbs & fats in under 1.5 seconds. Achieve your body goals 3x faster!
-
-### Full App Store Description:
-```
-MealPulse AI is the ultimate camera-powered AI calorie counter and macro tracker.
-
-Tired of typing every single ingredient into traditional food log apps? With MealPulse AI, simply snap a photo of your plate, fruit, or snack, and our multimodal AI vision model instantly calculates:
-• Total Calories (kcal)
-• Protein, Carbohydrates & Fats (grams)
-• Visual Health Score (1–10)
-• Personalized AI Nutrition Coach Insights
+Whether your goal is weight loss, muscle building, or simply maintaining a healthy lifestyle, MealPulse makes logging your meals as easy as snapping a photo.
 
 Key Features:
-📸 Instant Camera AI Vision Photo Scanner
-📊 Weekly Calorie & Macro Target Progress Gauge
-💧 Daily Hydration & Water Intake Tracker
-⚡ Personalized BMR & TDEE Goal Setup Quiz
-🔒 Private & Secure Data Storage
+📸 Instant AI Food Scanner: Simply take a picture of your meal or plate. Powered by advanced multimodal AI, MealPulse instantly recognizes your food, estimates portion sizes, and calculates calories and macronutrients (protein, carbs, fats) in seconds.
+📊 Comprehensive Macro & Calorie Tracking: Set your personal goals and track your daily budget. View visual breakdowns of your calorie distribution, daily habits, and nutritional trends to stay consistent.
+🥗 Smart Food & History Logs: Keep an organized food diary. Access your complete history, view detailed breakdowns of past meals, and edit entries with full flexibility.
+💧 Water & Hydration Tracker: Log your daily water intake to ensure optimal hydration.
+🔒 Secure & Cloud Synced: Your personal data, logs, and progress are securely stored and synced seamlessly with Supabase cloud database.
+💡 Insights & Analytics: Understand your eating patterns with visual analytics that help you stay accountable and make smarter nutritional choices every day.
 
-Subscription Plans:
-• Weekly Pass: $4.99/week (Includes 3-Day Free Trial)
-• Monthly PRO: $14.99/month (Save 30%)
-• Annual VIP: $59.99/year (Best Value - 70% OFF)
-
-Start your 3-day free trial today!
+⚕️ MEDICAL & HEALTHCARE DISCLAIMER:
+MealPulse AI is designed solely for general wellness, fitness, and nutritional informational purposes. MealPulse AI is not a medical device and does not provide medical advice, diagnosis, treatment, or prevention of any disease or health condition. Nutritional calculations, calorie targets, and AI estimates should never replace professional medical advice. Always consult a qualified physician, doctor, or certified healthcare professional before starting any new diet, caloric deficit, fasting protocol, or fitness program, especially if you have underlying health conditions or specific dietary requirements.
 ```
 
 ---
 
-## 🎬 Viral TikTok & Instagram Reels Marketing Scripts ($1k–$2k MRR Playbook)
+### 📝 Descrizione Completa / Full Description (it-IT):
+```text
+MealPulse AI è il modo più semplice e intelligente per monitorare l'alimentazione quotidiana, le calorie e i macronutrienti grazie al riconoscimento fotografico con intelligenza artificiale.
 
-### Script 1: "Testing Top Calorie Scanners" (High Organic Virality)
-- **Hook (0-3s)**: Show phone screen hovering over a plate of grilled salmon & avocado. "I tested the top AI calorie camera scanners so you don't have to."
-- **Body (3-12s)**: Tap MealPulse AI camera scan. Show real-time loading ring → boom: 520 kcal | 44g Protein identified in 1 second.
-- **CTA (12-15s)**: "Stop typing every ingredient manually. Download MealPulse AI (3 free scans in bio)."
+Che il tuo obiettivo sia la perdita di peso, la crescita muscolare o il mantenimento di uno stile di vita equilibrato, MealPulse rende la registrazione dei pasti semplice come scattare una foto.
 
-### Script 2: "What I Eat in a Day (Fat Loss)"
-- **Hook (0-3s)**: "How I track 180g of protein every day without wasting time typing into apps."
-- **Body (3-12s)**: Snap photo of breakfast (Eggs & Toast), Lunch (Bowl), Snack (Grapes). Show MealPulse AI ring filling up to 100% daily target.
-- **CTA (12-15s)**: "Try MealPulse AI on iOS & Android."
+Caratteristiche Principali:
+📸 Scanner Pasti Istantaneo con AI: Scatta una foto al tuo piatto o snack. L'intelligenza artificiale riconosce gli alimenti, stima le porzioni e calcola calorie e macro (proteine, carboidrati, grassi) in pochi istanti.
+📊 Tracciamento Calorie & Macronutrienti: Monitora il tuo budget calorico giornaliero con indicatori visivi chiari e statistiche nutrizionali dettagliate.
+🥗 Diario Alimentare & Storico Pasti: Consulta la cronologia completa dei tuoi pasti, modifica porzioni e grammature con la massima flessibilità.
+💧 Registro Idratazione: Monitora l'assunzione giornaliera di acqua per rimanere sempre idratato.
+🔒 Sincronizzazione Cloud Sicura: I tuoi dati e progressi sono salvati in modo sicuro sul cloud per essere sempre accessibili.
+💡 Statistiche & Trend Nutrizionali: Comprendi le tue abitudini alimentari per raggiungere i tuoi obiettivi di benessere giorno dopo giorno.
+
+⚕️ AVVISO MEDICO & DISCLAIMER SANITARIO:
+MealPulse AI è un'applicazione destinata esclusivamente a scopi di benessere generale, fitness e informazione nutrizionale. MealPulse AI non è un dispositivo medico e non fornisce consulenze mediche, diagnosi, trattamenti o prevenzione di patologie. Le stime delle calorie, dei nutrienti e i target generati dall'AI non sostituiscono in alcun modo il parere di un medico. Consulta sempre un medico, un dietologo o un professionista sanitario qualificato prima di intraprendere qualsiasi dieta, deficit calorico, digiuno o cambiamento nutrizionale, in particolare in presenza di condizioni mediche preesistenti.
+```

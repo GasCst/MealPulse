@@ -2,7 +2,7 @@
   "expo": {
     "name": "MealPulse AI: AI Calorie Counter",
     "slug": "mealpulse-ai",
-    "version": "2.3.3",
+    "version": "2.3.4",
     "orientation": "portrait",
     "icon": "./assets/icona_nuova.png",
     "scheme": "mealpulse",
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.mealpulse.app",
-      "versionCode": 101,
+      "versionCode": 102,
       "adaptiveIcon": {
         "backgroundColor": "#BEF264",
         "foregroundImage": "./assets/icona_nuova.png",

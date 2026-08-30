@@ -325,6 +325,14 @@ export default function OnboardingScreen() {
             <Ionicons name="arrow-forward" size={18} color="#0F172A" />
           </TouchableOpacity>
 
+          {/* Medical Disclaimer Note */}
+          <View style={[styles.onboardingMedicalBox, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+            <Ionicons name="medkit-outline" size={14} color={colors.lime} style={{ marginTop: 1 }} />
+            <Text style={[styles.onboardingMedicalText, { color: colors.textSecondary }]}>
+              {t('medical_disclaimer_text')}
+            </Text>
+          </View>
+
           <View style={{ width: '100%', marginTop: 14 }}>
             <AdBanner location="onboarding_greeting" />
           </View>
@@ -372,7 +380,15 @@ export default function OnboardingScreen() {
             </Animated.View>
           )}
 
-          <View style={{ width: '100%', marginTop: 24 }}>
+          {/* Medical Disclaimer on Calculation */}
+          <View style={[styles.onboardingMedicalBox, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, marginTop: 16 }]}>
+            <Ionicons name="medkit-outline" size={13} color={colors.lime} style={{ marginTop: 1 }} />
+            <Text style={[styles.onboardingMedicalText, { color: colors.textSecondary }]}>
+              {t('medical_disclaimer_text')}
+            </Text>
+          </View>
+
+          <View style={{ width: '100%', marginTop: 16 }}>
             <AdBanner location="onboarding_generating" />
           </View>
         </View>
@@ -1146,5 +1162,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     color: '#0F172A',
+  },
+  onboardingMedicalBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 14,
+    width: '100%',
+  },
+  onboardingMedicalText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 15,
   },
 });
