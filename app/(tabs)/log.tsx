@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -21,15 +21,53 @@ import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
 import { AdBanner } from '@/components/AdBanner';
+import { voiceCoachService } from '@/services/voiceCoachService';
+import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
+import { VoiceFeatureAdModal } from '@/components/VoiceFeatureAdModal';
 
 export default function LogScreen() {
-  const { user, burnedCaloriesToday, stepsToday, waterIntakeToday, updateWaterIntake, waterTarget } = useSubscription();
+  const router = useRouter();
+  const {
+    user,
+    isPro,
+    openPaywall,
+    burnedCaloriesToday,
+    stepsToday,
+    waterIntakeToday,
+    updateWaterIntake,
+    waterTarget,
+    targetCalories,
+  } = useSubscription();
   const { t } = useLanguage();
   const { isDarkMode, colors } = useTheme();
 
   const [historyMeals, setHistoryMeals] = useState<CloudMealLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  const [recapText, setRecapText] = useState<string>('');
+  const [isPlayingRecap, setIsPlayingRecap] = useState<boolean>(false);
+  const [isLoadingRecap, setIsLoadingRecap] = useState<boolean>(false);
+  const [coachVoice, setCoachVoice] = useState<ModelVoiceItem | null>(null);
+  const lastVoiceIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const unsubVoice = voiceCoachService.subscribePreferredVoice((v) => {
+      if (lastVoiceIdRef.current && lastVoiceIdRef.current !== v.id) {
+        setRecapText('');
+      }
+      lastVoiceIdRef.current = v.id;
+      setCoachVoice(v);
+    });
+    const unsubPlay = voiceCoachService.subscribePlaybackState((playing, loading) => {
+      setIsPlayingRecap(playing);
+      setIsLoadingRecap(loading);
+    });
+    return () => {
+      unsubVoice();
+      unsubPlay();
+    };
+  }, []);
 
   const targetMl = waterTarget || 2500;
   const totalGlassesCount = Math.max(8, Math.round(targetMl / 250));
@@ -80,6 +118,51 @@ export default function LogScreen() {
     }
   };
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayMeals = historyMeals.filter((m) => m.logged_at && m.logged_at.startsWith(todayStr));
+  const todayCalories = todayMeals.reduce((acc, m) => acc + Number(m.calories || 0), 0);
+  const targetCal = targetCalories || 2000;
+
+  const [showAdModal, setShowAdModal] = useState<boolean>(false);
+
+  const startRecapPlayback = async () => {
+    setIsLoadingRecap(true);
+    try {
+      const activeVoice = coachVoice || (await voiceCoachService.getPreferredCoachVoice());
+      let text = recapText;
+      if (!text) {
+        text = await voiceCoachService.getDailyRecap(
+          todayCalories,
+          targetCal,
+          burnedCaloriesToday || 0,
+          todayMeals.length,
+          activeVoice
+        );
+        setRecapText(text);
+      }
+      await voiceCoachService.playSpeech(text, activeVoice?.id);
+    } catch (e) {
+      console.warn('[LogScreen] Daily recap error:', e);
+    } finally {
+      setIsLoadingRecap(false);
+    }
+  };
+
+  const handlePlayDailyRecap = async () => {
+    triggerHaptic('medium');
+    if (isPlayingRecap) {
+      await voiceCoachService.stopAudio();
+      return;
+    }
+
+    if (!isPro) {
+      setShowAdModal(true);
+      return;
+    }
+
+    await startRecapPlayback();
+  };
+
   // Group meals by date (YYYY-MM-DD)
   const groupedMeals: Record<string, CloudMealLog[]> = {};
   historyMeals.forEach((meal) => {
@@ -109,9 +192,18 @@ export default function LogScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('log_history_title')}</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('log_history_sub')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+            <TouchableOpacity
+              style={[styles.refreshBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>{t('log_history_title')}</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('log_history_sub')}</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={[styles.refreshBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
@@ -209,6 +301,64 @@ export default function LogScreen() {
           </Animated.View>
         )}
 
+        {/* Daily Voice Recap Banner */}
+        <Animated.View
+          entering={FadeInUp.delay(50).duration(400)}
+          style={[
+            styles.recapCard,
+            {
+              backgroundColor: isDarkMode ? '#142019' : '#FFFFFF',
+              borderColor: isDarkMode ? '#22382B' : '#E2EBE5',
+            },
+          ]}
+        >
+          <View style={styles.recapTopRow}>
+            <View style={[styles.recapAvatarCircle, { backgroundColor: isDarkMode ? '#1E3827' : '#E8F5EC' }]}>
+              <Text style={{ fontSize: 22 }}>{coachVoice?.emoji || '🎙️'}</Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.recapTitle, { color: colors.textPrimary }]}>
+                  Daily Voice Recap
+                </Text>
+                <View style={styles.recapBadge}>
+                  <Text style={styles.recapBadgeText}>SERALE</Text>
+                </View>
+              </View>
+              <Text style={[styles.recapSub, { color: colors.textSecondary }]}>
+                {recapText ? 'Tocca per riascoltare il resoconto' : `Ascolta il resoconto serale da ${coachVoice?.name || 'Coach AI'}`}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.recapPlayBtn,
+                { backgroundColor: isPlayingRecap ? colors.coral : colors.lime },
+              ]}
+              onPress={handlePlayDailyRecap}
+              disabled={isLoadingRecap}
+              activeOpacity={0.85}
+            >
+              {isLoadingRecap ? (
+                <ActivityIndicator size="small" color="#0B1410" />
+              ) : isPlayingRecap ? (
+                <Ionicons name="pause" size={18} color="#FFFFFF" />
+              ) : (
+                <Ionicons name="play" size={18} color="#0B1410" style={{ marginLeft: 2 }} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {recapText ? (
+            <View style={[styles.recapQuoteBox, { backgroundColor: isDarkMode ? '#0F1A13' : '#F4F9F5' }]}>
+              <Text style={[styles.recapQuoteText, { color: colors.textPrimary }]}>
+                "{recapText}"
+              </Text>
+            </View>
+          ) : null}
+        </Animated.View>
+
         {/* Cloud Meal History Section */}
         <View style={styles.historySection}>
           <Text style={[styles.sectionHeader, { color: colors.textPrimary }]}>{t('log_history_sub')}</Text>
@@ -286,10 +436,23 @@ export default function LogScreen() {
         </View>
       </ScrollView>
 
+      <VoiceFeatureAdModal
+        visible={showAdModal}
+        featureTitle="Daily Voice Recap"
+        featureDescription="Ascolta la sintesi serale intelligente del tuo Coach AI che analizza tutti i pasti, calorie e macro registrati oggi."
+        featureIcon="mic"
+        onClose={() => setShowAdModal(false)}
+        onUnlocked={() => {
+          setShowAdModal(false);
+          startRecapPlayback();
+        }}
+        onGoPro={() => openPaywall('daily_recap_voice')}
+      />
+
       <PaywallModal />
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -489,5 +652,75 @@ const styles = StyleSheet.create({
   mealCal: {
     fontSize: 13,
     fontWeight: '800',
+  },
+  // Daily Voice Recap Styles
+  recapCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  recapTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  recapAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recapTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  recapBadge: {
+    backgroundColor: '#FF6B4A20',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  recapBadgeText: {
+    color: '#FF6B4A',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  recapSub: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  recapPlayBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  recapQuoteBox: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF6B4A',
+  },
+  recapQuoteText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    lineHeight: 18,
+    fontWeight: '600',
   },
 });

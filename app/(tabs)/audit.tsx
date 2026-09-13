@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,9 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
+import { voiceCoachService } from '@/services/voiceCoachService';
+import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
+import { VoiceFeatureAdModal } from '@/components/VoiceFeatureAdModal';
 
 export default function AuditRewardsScreen() {
   const { user, isPro, openPaywall } = useSubscription();
@@ -26,6 +29,31 @@ export default function AuditRewardsScreen() {
 
   const [loading, setLoading] = useState(true);
   const [mealLogs, setMealLogs] = useState<CloudMealLog[]>([]);
+
+  const [coachVoice, setCoachVoice] = useState<ModelVoiceItem | null>(null);
+  const [celebrationText, setCelebrationText] = useState<string>('');
+  const [isPlayingCelebration, setIsPlayingCelebration] = useState(false);
+  const [isLoadingCelebration, setIsLoadingCelebration] = useState(false);
+  const [showAdModal, setShowAdModal] = useState(false);
+  const lastVoiceIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const unsubVoice = voiceCoachService.subscribePreferredVoice((v) => {
+      if (lastVoiceIdRef.current && lastVoiceIdRef.current !== v.id) {
+        setCelebrationText('');
+      }
+      lastVoiceIdRef.current = v.id;
+      setCoachVoice(v);
+    });
+    const unsubPlay = voiceCoachService.subscribePlaybackState((playing, loading) => {
+      setIsPlayingCelebration(playing);
+      setIsLoadingCelebration(loading);
+    });
+    return () => {
+      unsubVoice();
+      unsubPlay();
+    };
+  }, []);
 
   const targetCalorieGoal = 1920;
 
@@ -78,6 +106,38 @@ export default function AuditRewardsScreen() {
   // Calculate Streak & Points
   const streakDays = Math.max(uniqueDaysCount, todayCalories > 0 ? 1 : 0);
   const totalPoints = (streakDays * 100) + (isGoalMetToday ? 150 : 50) + (isPro ? 500 : 0);
+
+  const startCelebrationPlayback = async () => {
+    setIsLoadingCelebration(true);
+    try {
+      const activeVoice = coachVoice || (await voiceCoachService.getPreferredCoachVoice());
+      let text = celebrationText;
+      if (!text) {
+        text = await voiceCoachService.getStreakCelebration(streakDays, activeVoice);
+        setCelebrationText(text);
+      }
+      await voiceCoachService.playSpeech(text, activeVoice?.id);
+    } catch (e) {
+      console.warn('[AuditScreen] Celebration audio error:', e);
+    } finally {
+      setIsLoadingCelebration(false);
+    }
+  };
+
+  const handlePlayStreakCelebration = async () => {
+    triggerHaptic('medium');
+    if (isPlayingCelebration) {
+      await voiceCoachService.stopAudio();
+      return;
+    }
+
+    if (!isPro) {
+      setShowAdModal(true);
+      return;
+    }
+
+    await startCelebrationPlayback();
+  };
 
   const achievements = [
     {
@@ -173,6 +233,66 @@ export default function AuditRewardsScreen() {
           </View>
         </Animated.View>
 
+        {/* Streak & Record Audio Celebration */}
+        <Animated.View
+          entering={FadeInUp.delay(100).duration(500)}
+          style={[
+            styles.celebrationCard,
+            {
+              backgroundColor: isDarkMode ? '#1C1812' : '#FFFDF5',
+              borderColor: '#F59E0B40',
+            },
+          ]}
+        >
+          <View style={styles.celebrationRow}>
+            <View style={[styles.celebrationIconBox, { backgroundColor: '#F59E0B20' }]}>
+              <Text style={{ fontSize: 24 }}>🏆</Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.celebrationTitle, { color: colors.textPrimary }]}>
+                  Celebrazione Streak 🔥
+                </Text>
+                <View style={styles.streakMilestoneBadge}>
+                  <Text style={styles.streakMilestoneText}>{streakDays} Giorni</Text>
+                </View>
+              </View>
+              <Text style={[styles.celebrationDesc, { color: colors.textSecondary }]} numberOfLines={2}>
+                {celebrationText
+                  ? celebrationText
+                  : `Ascolta la voce di ${coachVoice?.name || 'Coach AI'} che celebra il tuo record di costanza!`}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.celebrationPlayBtn,
+                { backgroundColor: isPlayingCelebration ? colors.coral : '#F59E0B' },
+              ]}
+              onPress={handlePlayStreakCelebration}
+              disabled={isLoadingCelebration}
+              activeOpacity={0.85}
+            >
+              {isLoadingCelebration ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : isPlayingCelebration ? (
+                <Ionicons name="pause" size={18} color="#FFFFFF" />
+              ) : (
+                <Ionicons name="volume-high" size={18} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {celebrationText ? (
+            <View style={[styles.celebrationQuoteBox, { backgroundColor: isDarkMode ? '#16120C' : '#FFF9EE' }]}>
+              <Text style={[styles.celebrationQuoteText, { color: colors.textPrimary }]}>
+                "{celebrationText}"
+              </Text>
+            </View>
+          ) : null}
+        </Animated.View>
+
         {/* Achievements Checklist */}
         <View style={styles.listSection}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('unlocked_achievements')}</Text>
@@ -242,6 +362,19 @@ export default function AuditRewardsScreen() {
           )}
         </View>
       </ScrollView>
+
+      <VoiceFeatureAdModal
+        visible={showAdModal}
+        featureTitle="Celebrazione Record di Streak"
+        featureDescription="Ascolta la celebrazione trionfale ed entusiasta del tuo Coach Vocale per aver raggiunto questo record di costanza!"
+        featureIcon="trophy"
+        onClose={() => setShowAdModal(false)}
+        onUnlocked={() => {
+          setShowAdModal(false);
+          startCelebrationPlayback();
+        }}
+        onGoPro={() => openPaywall('streak_celebration_voice')}
+      />
 
       <PaywallModal />
     </SafeAreaView>
@@ -391,5 +524,75 @@ const styles = StyleSheet.create({
   rewardPointsText: {
     fontSize: 11,
     fontWeight: '900',
+  },
+  // Celebration Card Styles
+  celebrationCard: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  celebrationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  celebrationIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  celebrationTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  streakMilestoneBadge: {
+    backgroundColor: '#F59E0B20',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  streakMilestoneText: {
+    color: '#F59E0B',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  celebrationDesc: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  celebrationPlayBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  celebrationQuoteBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  celebrationQuoteText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    lineHeight: 18,
+    fontWeight: '600',
   },
 });

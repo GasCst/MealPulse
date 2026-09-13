@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -32,6 +33,7 @@ import { FastingTimerCard } from '@/components/FastingTimerCard';
 import { AdBanner } from '@/components/AdBanner';
 import { WeeklyCalendarStrip } from '@/components/WeeklyCalendarStrip';
 import { CalorieProgressRing } from '@/components/CalorieProgressRing';
+import { MorningBriefingCard } from '@/components/MorningBriefingCard';
 import { QuickLogModal } from '@/components/QuickLogModal';
 import { FoodSearchModal, FoodItem } from '@/components/FoodSearchModal';
 import { AINutritionResultModal, ScannedNutritionData } from '@/components/AINutritionResultModal';
@@ -248,6 +250,7 @@ export default function HomeScreen() {
   const [pendingBase64, setPendingBase64] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const pendingImageUriRef = React.useRef<string | null>(null);
   const [customApiKey, setCustomApiKey] = useState('');
   const [adPurpose, setAdPurpose] = useState<'ai_scan' | 'barcode_scan' | null>('ai_scan');
 
@@ -399,8 +402,38 @@ export default function HomeScreen() {
     }
   };
 
+  const persistImageForScan = async (rawUri: string, base64: string): Promise<string> => {
+    if (Platform.OS === 'web') return rawUri;
+    try {
+      const scansDir = `${FileSystem.documentDirectory}scans/`;
+      const dirInfo = await FileSystem.getInfoAsync(scansDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(scansDir, { intermediates: true });
+      }
+      const targetPath = `${scansDir}meal_scan_${Date.now()}.jpg`;
+      if (base64) {
+        await FileSystem.writeAsStringAsync(targetPath, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        return targetPath;
+      } else {
+        await FileSystem.copyAsync({ from: rawUri, to: targetPath });
+        return targetPath;
+      }
+    } catch (e) {
+      console.warn('[FileSystem Persist Error, falling back to rawUri]:', e);
+      return rawUri;
+    }
+  };
+
   const handleLaunchCamera = async () => {
     recordUsage();
+    // Resetta rigorosamente ogni dato di scansione precedente
+    setScannedNutritionData(null);
+    setCapturedImageUri(null);
+    setPendingBase64(null);
+    pendingImageUriRef.current = null;
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Denied', 'Camera permission is required to scan meal plates.');
@@ -415,12 +448,20 @@ export default function HomeScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      triggerScanFlow(result.assets[0].base64 || '', result.assets[0].uri);
+      const b64 = result.assets[0].base64 || '';
+      const stableUri = await persistImageForScan(result.assets[0].uri, b64);
+      triggerScanFlow(b64, stableUri);
     }
   };
 
   const handleLaunchGallery = async () => {
     recordUsage();
+    // Resetta rigorosamente ogni dato di scansione precedente
+    setScannedNutritionData(null);
+    setCapturedImageUri(null);
+    setPendingBase64(null);
+    pendingImageUriRef.current = null;
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Denied', 'Gallery access is required to pick meal photos.');
@@ -435,7 +476,9 @@ export default function HomeScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      triggerScanFlow(result.assets[0].base64 || '', result.assets[0].uri);
+      const b64 = result.assets[0].base64 || '';
+      const stableUri = await persistImageForScan(result.assets[0].uri, b64);
+      triggerScanFlow(b64, stableUri);
     }
   };
 
@@ -444,6 +487,7 @@ export default function HomeScreen() {
   };
 
   const triggerScanFlow = (base64: string, imageUri: string) => {
+    pendingImageUriRef.current = imageUri;
     setCapturedImageUri(imageUri);
     setPendingBase64(base64);
     setAdPurpose('ai_scan');
@@ -452,7 +496,7 @@ export default function HomeScreen() {
       setShowAdScanModal(true);
     } else {
       setShowScannerModal(true);
-      runAiAnalysis(base64);
+      runAiAnalysis(base64, imageUri);
     }
   };
 
@@ -460,6 +504,7 @@ export default function HomeScreen() {
     setShowAdScanModal(false);
     const purpose = adPurpose;
     const b64 = pendingBase64;
+    const imgUri = pendingImageUriRef.current || capturedImageUri;
     setAdPurpose(null);
     setPendingBase64(null);
 
@@ -467,7 +512,7 @@ export default function HomeScreen() {
       setShowBarcodeModal(true);
     } else if (b64) {
       setShowScannerModal(true);
-      runAiAnalysis(b64);
+      runAiAnalysis(b64, imgUri || undefined);
     }
   };
 
@@ -476,38 +521,82 @@ export default function HomeScreen() {
     setShowScannerModal(false);
     setPendingBase64(null);
     setCapturedImageUri(null);
+    pendingImageUriRef.current = null;
   };
 
-  const runAiAnalysis = async (base64: string) => {
+  const params = useLocalSearchParams<{
+    openSlot?: string;
+    triggerAiScan?: string;
+    openQuickLog?: string;
+    quickScanBase64?: string;
+  }>();
+
+  useEffect(() => {
+    if (params.openSlot && ['breakfast', 'lunch', 'dinner', 'snack'].includes(params.openSlot)) {
+      setActiveMealType(params.openSlot as any);
+      setShowFoodSearchModal(true);
+      router.setParams({ openSlot: undefined });
+    } else if (params.triggerAiScan) {
+      setShowPhotoChoiceModal(true);
+      router.setParams({ triggerAiScan: undefined });
+    } else if (params.openQuickLog) {
+      setShowQuickLogModal(true);
+      router.setParams({ openQuickLog: undefined });
+    } else if (params.quickScanBase64) {
+      const b64 = params.quickScanBase64;
+      router.setParams({ quickScanBase64: undefined });
+      triggerScanFlow(b64, '');
+    }
+  }, [params.openSlot, params.triggerAiScan, params.openQuickLog, params.quickScanBase64]);
+
+  const runAiAnalysis = async (base64: string, explicitImageUri?: string) => {
     setIsScanning(true);
+    const targetImageUri =
+      explicitImageUri ||
+      pendingImageUriRef.current ||
+      capturedImageUri ||
+      (base64 ? `data:image/jpeg;base64,${base64}` : undefined);
+
     try {
       const result = await analyzeMealPlateImage(base64, customApiKey);
       setIsScanning(false);
       setShowScannerModal(false);
 
+      // Oggetti non-cibo (es. computer, vestiti, arredamento): macro azzerati e roast comici
+      const isNotFood = Boolean(result.is_not_food);
+      const finalCalories = isNotFood ? 0 : result.calories;
+      const finalProtein = isNotFood ? 0 : result.protein_g;
+      const finalCarbs = isNotFood ? 0 : result.carbs_g;
+      const finalFat = isNotFood ? 0 : result.fat_g;
+      const finalWeight = isNotFood ? 0 : (result.estimated_weight_g || 150);
+
       const parsedGrade: 'A' | 'B' | 'C' | 'D' =
-        typeof result.health_score === 'string' && ['A', 'B', 'C', 'D'].includes(result.health_score)
+        isNotFood ? 'D' : (typeof result.health_score === 'string' && ['A', 'B', 'C', 'D'].includes(result.health_score)
           ? (result.health_score as any)
-          : 'B';
+          : 'B');
 
       setScannedNutritionData({
-        food_name: result.food_name,
-        calories: result.calories,
-        protein_g: result.protein_g,
-        carbs_g: result.carbs_g,
-        fat_g: result.fat_g,
-        estimated_weight_g: result.estimated_weight_g || 150,
+        food_name: result.food_name || (isNotFood ? 'Oggetto non commestibile' : 'Pasto scansionato'),
+        calories: finalCalories,
+        protein_g: finalProtein,
+        carbs_g: finalCarbs,
+        fat_g: finalFat,
+        estimated_weight_g: finalWeight,
         item_count: result.item_count || 1,
-        unit_weight_g: result.unit_weight_g || 150,
-        insights: result.insights,
+        unit_weight_g: isNotFood ? 0 : (result.unit_weight_g || 150),
+        insights: result.insights || (isNotFood ? 'Oggetto non edibile. Valori nutrizionali pari a zero!' : 'Piatto bilanciato e nutriente.'),
         health_score: parsedGrade,
-        image_uri: capturedImageUri || undefined,
+        image_uri: targetImageUri,
+        roast_speech: result.roast_speech,
+        character_roasts: result.character_roasts,
       });
 
       setShowAINutritionResultModal(true);
     } catch (err: any) {
       setIsScanning(false);
       setShowScannerModal(false);
+      setCapturedImageUri(null);
+      pendingImageUriRef.current = null;
       Alert.alert('Scan Result', err.message || 'Could not analyze food plate.');
     }
   };
@@ -707,6 +796,12 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Morning AI Nutrition Briefing (Il buongiorno del Coach) */}
+        <MorningBriefingCard
+          targetCalories={targetCal}
+          targetProtein={proteinLeft > 0 ? proteinLeft : 140}
+        />
+
         {/* Weekly Calendar Day Strip */}
         <WeeklyCalendarStrip
           selectedDate={selectedDate}
@@ -778,16 +873,35 @@ export default function HomeScreen() {
         <View style={styles.dailySection}>
           <View style={styles.dailyHeaderRow}>
             <Text style={[styles.dailyHeading, { color: colors.textPrimary }]}>{t('daily_section_title')}</Text>
-            <TouchableOpacity
-              style={styles.quickAddPlusBtn}
-              onPress={() => {
-                if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowQuickLogModal(true);
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add-circle" size={28} color={colors.lime} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                style={[
+                  styles.openDiarioHeaderBtn,
+                  {
+                    backgroundColor: isDarkMode ? 'rgba(200, 243, 29, 0.12)' : '#F4FCE3',
+                    borderColor: isDarkMode ? '#2E491A' : '#D9F99D',
+                  },
+                ]}
+                onPress={() => {
+                  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/(tabs)/log');
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="book-outline" size={15} color={colors.lime} />
+                <Text style={[styles.openDiarioHeaderBtnText, { color: colors.lime }]}>Diario</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickAddPlusBtn}
+                onPress={() => {
+                  if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowQuickLogModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle" size={28} color={colors.lime} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Meal Category Cards: Breakfast, Lunch, Dinner, Snack */}
@@ -867,6 +981,40 @@ export default function HomeScreen() {
               </TouchableOpacity>
             );
           })}
+
+          {/* Prominent Diario Pasti & Voice Recap Banner Card */}
+          <TouchableOpacity
+            style={[
+              styles.diarioBannerCard,
+              {
+                backgroundColor: isDarkMode ? '#131920' : '#FFFFFF',
+                borderColor: colors.cardBorder,
+              },
+            ]}
+            onPress={() => {
+              if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/(tabs)/log');
+            }}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.diarioBannerIconBox, { backgroundColor: isDarkMode ? 'rgba(200, 243, 29, 0.15)' : '#F4FCE3' }]}>
+              <Ionicons name="book" size={22} color={colors.lime} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.diarioBannerTitle, { color: colors.textPrimary }]}>
+                  Diario Pasti Completo
+                </Text>
+                <View style={[styles.miniProPill, { backgroundColor: colors.lime }]}>
+                  <Text style={styles.miniProPillText}>VOICE RECAP 🎙️</Text>
+                </View>
+              </View>
+              <Text style={[styles.diarioBannerSub, { color: colors.textSecondary }]}>
+                Cronologia giornaliera e resoconto serale del tuo Coach AI
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         {/* Integrated Utilities: Water Tracker & Fasting Timer */}
@@ -904,7 +1052,12 @@ export default function HomeScreen() {
       <AINutritionResultModal
         visible={showAINutritionResultModal}
         data={scannedNutritionData}
-        onClose={() => setShowAINutritionResultModal(false)}
+        onClose={() => {
+          setShowAINutritionResultModal(false);
+          setScannedNutritionData(null);
+          setCapturedImageUri(null);
+          pendingImageUriRef.current = null;
+        }}
         onConfirm={handleConfirmScannedMeal}
       />
 
@@ -1130,5 +1283,57 @@ const styles = StyleSheet.create({
   activitySyncBtnText: {
     fontSize: 11,
     fontWeight: '900',
+  },
+  openDiarioHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 9,
+    borderWidth: 1,
+  },
+  openDiarioHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  diarioBannerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  diarioBannerIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  diarioBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  diarioBannerSub: {
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  miniProPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  miniProPillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#0F172A',
   },
 });

@@ -23,6 +23,9 @@ import { useTheme } from '@/context/ThemeContext';
 import { AuthService } from '@/services/authService';
 import { PaywallModal } from '@/components/PaywallModal';
 import { SpinWheelModal } from '@/components/SpinWheelModal';
+import { VoiceSelectorModal, ModelVoiceItem } from '@/components/VoiceSelectorModal';
+import { voiceCoachService, DEFAULT_COACH_VOICE } from '@/services/voiceCoachService';
+import { VoiceFeatureAdModal } from '@/components/VoiceFeatureAdModal';
 
 export default function MonetizationScreen() {
   const {
@@ -56,6 +59,74 @@ export default function MonetizationScreen() {
 
   const [showSpinWheel, setShowSpinWheel] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(599); // 09:59 countdown
+
+  const [activeCoachVoice, setActiveCoachVoice] = useState<ModelVoiceItem>(DEFAULT_COACH_VOICE);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [isPlayingCoachVoice, setIsPlayingCoachVoice] = useState(false);
+  const [showVoiceAdModal, setShowVoiceAdModal] = useState(false);
+  const [pendingSelectedVoice, setPendingSelectedVoice] = useState<ModelVoiceItem | null>(null);
+
+  useEffect(() => {
+    const unsubVoice = voiceCoachService.subscribePreferredVoice((v) => {
+      setActiveCoachVoice(v);
+    });
+    const unsubPlay = voiceCoachService.subscribePlaybackState((playing) => {
+      setIsPlayingCoachVoice(playing);
+    });
+    return () => {
+      unsubVoice();
+      unsubPlay();
+    };
+  }, []);
+
+  const startSampleCoachVoicePlayback = async (voiceToUse?: ModelVoiceItem) => {
+    const v = voiceToUse || activeCoachVoice;
+    const samplePhrase =
+      v.id === 'zio_italiano'
+        ? "Uè wagliò!... Sono il tuo Coach Personale, oggi si mangia sano e verace!"
+        : v.id === 'chef_sarcastico'
+        ? "Benvenuto in cucina!... Meno scuse, zero carboidrati extra e massima disciplina!"
+        : `Inizializzazione completata... Sono ${v.name}, il tuo assistente nutrizionale personale!`;
+
+    await voiceCoachService.playSpeech(samplePhrase, v.id);
+  };
+
+  const handleSelectCoachVoice = async (voice: ModelVoiceItem) => {
+    setShowVoiceModal(false);
+    if (!isPro && voice.id !== 'zio_italiano') {
+      setPendingSelectedVoice(voice);
+      setShowVoiceAdModal(true);
+      return;
+    }
+    await voiceCoachService.setPreferredCoachVoice(voice);
+    await startSampleCoachVoicePlayback(voice);
+  };
+
+  const handlePlaySampleCoachVoice = async () => {
+    if (isPlayingCoachVoice) {
+      await voiceCoachService.stopAudio();
+      return;
+    }
+
+    if (!isPro && activeCoachVoice.id !== 'zio_italiano') {
+      setPendingSelectedVoice(null);
+      setShowVoiceAdModal(true);
+      return;
+    }
+
+    await startSampleCoachVoicePlayback(activeCoachVoice);
+  };
+
+  const handleVoiceFeatureUnlocked = async () => {
+    setShowVoiceAdModal(false);
+    if (pendingSelectedVoice) {
+      await voiceCoachService.setPreferredCoachVoice(pendingSelectedVoice);
+      await startSampleCoachVoicePlayback(pendingSelectedVoice);
+      setPendingSelectedVoice(null);
+    } else {
+      await startSampleCoachVoicePlayback(activeCoachVoice);
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -349,6 +420,91 @@ export default function MonetizationScreen() {
           )}
         </View>
 
+        {/* Il Mio Assistente AI Personale (Voice Coach Settings) */}
+        <View style={styles.sectionHead}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>
+            Il Mio Assistente AI Personale 🎙️
+          </Text>
+          <Text style={[styles.sectionNote, { color: theme.textMuted, fontFamily: fontFamilyMono }]}>
+            58+ VOCI XTTS-V2 & ROAST
+          </Text>
+        </View>
+
+        <View style={styles.stack}>
+          <View style={[styles.rowCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
+            <View style={styles.bracketTL_small} />
+            <View style={styles.bracketTR_small} />
+            <View style={styles.bracketBL_small} />
+            <View style={styles.bracketBR_small} />
+
+            <View style={styles.rowTop}>
+              <View style={[styles.rowIco, { backgroundColor: isDarkMode ? '#243D2F' : '#E8F5EC' }]}>
+                <Text style={{ fontSize: 22 }}>{activeCoachVoice.emoji}</Text>
+              </View>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{activeCoachVoice.name}</Text>
+                  <View style={{ backgroundColor: theme.lime, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#14181B' }}>ATTIVA</Text>
+                  </View>
+                </View>
+                <Text style={[styles.rowHelp, { color: theme.textMuted }]}>
+                  {activeCoachVoice.styleTag} • {activeCoachVoice.personality}
+                </Text>
+              </View>
+            </View>
+
+            {/* Action buttons */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                style={[
+                  styles.cta,
+                  { backgroundColor: theme.lime, flex: 1, marginTop: 0, paddingVertical: 10 },
+                ]}
+                onPress={() => setShowVoiceModal(true)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="mic" size={16} color="#14181B" />
+                <Text style={[styles.ctaText, { fontFamily: fontFamilyDisplay, fontSize: 13 }]}>
+                  Scegli tra 58+ Voci
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.cta,
+                  {
+                    backgroundColor: isPlayingCoachVoice ? theme.coral : isDarkMode ? '#2C343A' : '#E2E8F0',
+                    marginTop: 0,
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                  },
+                ]}
+                onPress={handlePlaySampleCoachVoice}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name={isPlayingCoachVoice ? 'pause' : 'volume-high'}
+                  size={16}
+                  color={isPlayingCoachVoice ? '#FFFFFF' : theme.textPrimary}
+                />
+                <Text
+                  style={[
+                    styles.ctaText,
+                    {
+                      color: isPlayingCoachVoice ? '#FFFFFF' : theme.textPrimary,
+                      fontFamily: fontFamilyDisplay,
+                      fontSize: 13,
+                    },
+                  ]}
+                >
+                  {isPlayingCoachVoice ? 'Ferma' : 'Prova'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
         {/* AI Recognition Settings */}
         <View style={styles.sectionHead}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary, fontFamily: fontFamilyDisplay }]}>{t('ai_recognition_title')}</Text>
@@ -592,6 +748,26 @@ export default function MonetizationScreen() {
       </ScrollView>
       <PaywallModal />
       <SpinWheelModal visible={showSpinWheel} onClose={() => setShowSpinWheel(false)} />
+      <VoiceSelectorModal
+        visible={showVoiceModal}
+        onClose={() => setShowVoiceModal(false)}
+        onSelectVoice={handleSelectCoachVoice}
+        currentVoiceId={activeCoachVoice.id}
+        isPro={isPro}
+        unlockedVoices={{}}
+      />
+      <VoiceFeatureAdModal
+        visible={showVoiceAdModal}
+        featureTitle={`Assistente Vocale: ${pendingSelectedVoice?.name || activeCoachVoice.name}`}
+        featureDescription="Sblocca l'ascolto e l'utilizzo delle voci neurali esclusive PRO con un breve video pubblicitario."
+        featureIcon="mic"
+        onClose={() => {
+          setShowVoiceAdModal(false);
+          setPendingSelectedVoice(null);
+        }}
+        onUnlocked={handleVoiceFeatureUnlocked}
+        onGoPro={() => openPaywall('voice_coach_pro_switch')}
+      />
     </SafeAreaView>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -13,6 +13,8 @@ import Animated, {
 import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { voiceCoachService } from '@/services/voiceCoachService';
+import { VoiceFeatureAdModal } from './VoiceFeatureAdModal';
 
 interface WaterTrackerCardProps {
   selectedDate?: Date | string;
@@ -22,11 +24,15 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
   const { t } = useLanguage();
   const { isDarkMode, colors } = useTheme();
   const {
+    isPro,
+    openPaywall,
     waterTarget,
     getWaterIntakeForDateSync,
     loadWaterIntakeForDate,
     updateWaterIntake,
   } = useSubscription();
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [isCoachPlaying, setIsCoachPlaying] = useState(false);
 
   const getDateKey = (d?: Date | string): string => {
     if (!d) return new Date().toISOString().split('T')[0];
@@ -43,6 +49,13 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
   useEffect(() => {
     loadWaterIntakeForDate(currentDateKey);
   }, [currentDateKey]);
+
+  useEffect(() => {
+    const unsub = voiceCoachService.subscribePlaybackState((playing) => {
+      setIsCoachPlaying(playing);
+    });
+    return () => unsub();
+  }, []);
 
   const targetMl = waterTarget || 2500;
   const percent = Math.min(100, Math.round((currentIntake / targetMl) * 100));
@@ -69,9 +82,28 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
     } catch {}
   };
 
+  const handlePlayCoachWater = async (forcedIntake?: number) => {
+    triggerHaptic('medium');
+    if (isCoachPlaying) {
+      await voiceCoachService.stopAudio();
+      return;
+    }
+
+    if (!isPro) {
+      setShowAdModal(true);
+      return;
+    }
+
+    await voiceCoachService.playWaterCheer(forcedIntake !== undefined ? forcedIntake : currentIntake, targetMl);
+  };
+
   const handleAdd = (amount: number) => {
     triggerHaptic('medium');
+    const newIntake = currentIntake + amount;
     updateWaterIntake(amount, currentDateKey);
+    if (isPro) {
+      voiceCoachService.playWaterCheer(newIntake, targetMl).catch(() => {});
+    }
   };
 
   return (
@@ -96,9 +128,29 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
             <Text style={[styles.sub, { color: colors.textSecondary }]}>{t('water_tracker_sub')}</Text>
           </View>
         </View>
-        <Text style={[styles.percentBadge, { backgroundColor: 'rgba(56, 189, 248, 0.18)', color: '#38BDF8' }]}>
-          {percent}%
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            style={[
+              styles.coachWaterBtn,
+              {
+                backgroundColor: isDarkMode ? 'rgba(200, 243, 29, 0.15)' : '#F4FCE3',
+                borderColor: isDarkMode ? '#2E491A' : '#D9F99D',
+              },
+            ]}
+            onPress={() => handlePlayCoachWater()}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isCoachPlaying ? 'volume-high' : 'mic'}
+              size={13}
+              color={colors.lime}
+            />
+            <Text style={[styles.coachWaterBtnText, { color: colors.lime }]}>Coach</Text>
+          </TouchableOpacity>
+          <Text style={[styles.percentBadge, { backgroundColor: 'rgba(56, 189, 248, 0.18)', color: '#38BDF8' }]}>
+            {percent}%
+          </Text>
+        </View>
       </View>
 
       {/* Progress Bar with animated fill */}
@@ -163,11 +215,37 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
           <Text style={[styles.addBtnText, { color: colors.sky }]}>+500 ml</Text>
         </TouchableOpacity>
       </View>
+
+      <VoiceFeatureAdModal
+        visible={showAdModal}
+        featureTitle="Coach Vocale Idratazione"
+        featureDescription="Ascolta l'incitamento personalizzato in tempo reale del tuo Coach vocale per raggiungere il target d'idratazione."
+        featureIcon="water"
+        onClose={() => setShowAdModal(false)}
+        onUnlocked={() => {
+          setShowAdModal(false);
+          voiceCoachService.playWaterCheer(currentIntake, targetMl);
+        }}
+        onGoPro={() => openPaywall('water_coach_voice')}
+      />
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
+  coachWaterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  coachWaterBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
   card: {
     borderRadius: 22,
     padding: 16,
