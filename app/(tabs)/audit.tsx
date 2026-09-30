@@ -1,14 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +10,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
+import { useVoiceAction } from '@/hooks/useVoiceAction';
 import { voiceCoachService } from '@/services/voiceCoachService';
 import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
 import { VoiceFeatureAdModal } from '@/components/VoiceFeatureAdModal';
@@ -30,10 +23,9 @@ export default function AuditRewardsScreen() {
   const [loading, setLoading] = useState(true);
   const [mealLogs, setMealLogs] = useState<CloudMealLog[]>([]);
 
+  const { isPlaying: isPlayingCelebration, isLoading: isLoadingCelebration, run: runCelebration } = useVoiceAction('celebration');
   const [coachVoice, setCoachVoice] = useState<ModelVoiceItem | null>(null);
   const [celebrationText, setCelebrationText] = useState<string>('');
-  const [isPlayingCelebration, setIsPlayingCelebration] = useState(false);
-  const [isLoadingCelebration, setIsLoadingCelebration] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
   const lastVoiceIdRef = useRef<string | null>(null);
 
@@ -45,13 +37,8 @@ export default function AuditRewardsScreen() {
       lastVoiceIdRef.current = v.id;
       setCoachVoice(v);
     });
-    const unsubPlay = voiceCoachService.subscribePlaybackState((playing, loading) => {
-      setIsPlayingCelebration(playing);
-      setIsLoadingCelebration(loading);
-    });
     return () => {
       unsubVoice();
-      unsubPlay();
     };
   }, []);
 
@@ -107,8 +94,7 @@ export default function AuditRewardsScreen() {
   const streakDays = Math.max(uniqueDaysCount, todayCalories > 0 ? 1 : 0);
   const totalPoints = (streakDays * 100) + (isGoalMetToday ? 150 : 50) + (isPro ? 500 : 0);
 
-  const startCelebrationPlayback = async () => {
-    setIsLoadingCelebration(true);
+  const startCelebrationPlayback = () => runCelebration(async () => {
     try {
       const activeVoice = coachVoice || (await voiceCoachService.getPreferredCoachVoice());
       let text = celebrationText;
@@ -116,13 +102,11 @@ export default function AuditRewardsScreen() {
         text = await voiceCoachService.getStreakCelebration(streakDays, activeVoice);
         setCelebrationText(text);
       }
-      await voiceCoachService.playSpeech(text, activeVoice?.id);
+      await voiceCoachService.playSpeech(text, activeVoice?.id, 'celebration');
     } catch (e) {
       console.warn('[AuditScreen] Celebration audio error:', e);
-    } finally {
-      setIsLoadingCelebration(false);
     }
-  };
+  });
 
   const handlePlayStreakCelebration = async () => {
     triggerHaptic('medium');
@@ -272,6 +256,8 @@ export default function AuditRewardsScreen() {
               ]}
               onPress={handlePlayStreakCelebration}
               disabled={isLoadingCelebration}
+              accessibilityLabel={t(isLoadingCelebration ? 'voice_loading' : isPlayingCelebration ? 'voice_stop' : 'voice_listen')}
+              accessibilityState={{ busy: isLoadingCelebration, disabled: isLoadingCelebration }}
               activeOpacity={0.85}
             >
               {isLoadingCelebration ? (
@@ -287,7 +273,7 @@ export default function AuditRewardsScreen() {
           {celebrationText ? (
             <View style={[styles.celebrationQuoteBox, { backgroundColor: isDarkMode ? '#16120C' : '#FFF9EE' }]}>
               <Text style={[styles.celebrationQuoteText, { color: colors.textPrimary }]}>
-                "{celebrationText}"
+                &quot;{celebrationText}&quot;
               </Text>
             </View>
           ) : null}

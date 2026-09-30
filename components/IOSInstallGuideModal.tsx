@@ -1,14 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-  Linking,
-  Image,
-} from 'react-native';
+import { View, Text, Modal, StyleSheet, Platform, Linking, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';

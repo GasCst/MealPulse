@@ -1,14 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useMemo } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { Modal, View, Text, TextInput, FlatList, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/context/ThemeContext';
@@ -1178,7 +1170,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
               <View style={styles.emptyContainer}>
                 <Ionicons name="search-outline" size={42} color={colors.textSecondary} />
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  Nessuna voce trovata per "{searchQuery}"
+                  Nessuna voce trovata per &quot;{searchQuery}&quot;
                 </Text>
               </View>
             }

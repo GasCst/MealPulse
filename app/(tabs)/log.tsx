@@ -1,16 +1,7 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -21,6 +12,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { SupabaseService, CloudMealLog } from '@/services/supabaseService';
 import { PaywallModal } from '@/components/PaywallModal';
 import { AdBanner } from '@/components/AdBanner';
+import { useVoiceAction } from '@/hooks/useVoiceAction';
 import { voiceCoachService } from '@/services/voiceCoachService';
 import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
 import { VoiceFeatureAdModal } from '@/components/VoiceFeatureAdModal';
@@ -46,8 +38,7 @@ export default function LogScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const [recapText, setRecapText] = useState<string>('');
-  const [isPlayingRecap, setIsPlayingRecap] = useState<boolean>(false);
-  const [isLoadingRecap, setIsLoadingRecap] = useState<boolean>(false);
+  const { isPlaying: isPlayingRecap, isLoading: isLoadingRecap, run: runRecap } = useVoiceAction('recap');
   const [coachVoice, setCoachVoice] = useState<ModelVoiceItem | null>(null);
   const lastVoiceIdRef = useRef<string | null>(null);
 
@@ -59,13 +50,8 @@ export default function LogScreen() {
       lastVoiceIdRef.current = v.id;
       setCoachVoice(v);
     });
-    const unsubPlay = voiceCoachService.subscribePlaybackState((playing, loading) => {
-      setIsPlayingRecap(playing);
-      setIsLoadingRecap(loading);
-    });
     return () => {
       unsubVoice();
-      unsubPlay();
     };
   }, []);
 
@@ -125,8 +111,7 @@ export default function LogScreen() {
 
   const [showAdModal, setShowAdModal] = useState<boolean>(false);
 
-  const startRecapPlayback = async () => {
-    setIsLoadingRecap(true);
+  const startRecapPlayback = () => runRecap(async () => {
     try {
       const activeVoice = coachVoice || (await voiceCoachService.getPreferredCoachVoice());
       let text = recapText;
@@ -140,13 +125,11 @@ export default function LogScreen() {
         );
         setRecapText(text);
       }
-      await voiceCoachService.playSpeech(text, activeVoice?.id);
+      await voiceCoachService.playSpeech(text, activeVoice?.id, 'recap');
     } catch (e) {
       console.warn('[LogScreen] Daily recap error:', e);
-    } finally {
-      setIsLoadingRecap(false);
     }
-  };
+  });
 
   const handlePlayDailyRecap = async () => {
     triggerHaptic('medium');
@@ -327,7 +310,7 @@ export default function LogScreen() {
                 </View>
               </View>
               <Text style={[styles.recapSub, { color: colors.textSecondary }]}>
-                {recapText ? 'Tocca per riascoltare il resoconto' : `Ascolta il resoconto serale da ${coachVoice?.name || 'Coach AI'}`}
+                {isLoadingRecap ? t('voice_loading_hint') : recapText ? 'Tocca per riascoltare il resoconto' : `Ascolta il resoconto serale da ${coachVoice?.name || 'Coach AI'}`}
               </Text>
             </View>
 
@@ -338,6 +321,8 @@ export default function LogScreen() {
               ]}
               onPress={handlePlayDailyRecap}
               disabled={isLoadingRecap}
+              accessibilityLabel={t(isLoadingRecap ? 'voice_loading' : isPlayingRecap ? 'voice_stop' : 'voice_listen')}
+              accessibilityState={{ busy: isLoadingRecap, disabled: isLoadingRecap }}
               activeOpacity={0.85}
             >
               {isLoadingRecap ? (
@@ -353,7 +338,7 @@ export default function LogScreen() {
           {recapText ? (
             <View style={[styles.recapQuoteBox, { backgroundColor: isDarkMode ? '#0F1A13' : '#F4F9F5' }]}>
               <Text style={[styles.recapQuoteText, { color: colors.textPrimary }]}>
-                "{recapText}"
+                &quot;{recapText}&quot;
               </Text>
             </View>
           ) : null}

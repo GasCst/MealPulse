@@ -1,16 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-  Animated,
-  Easing,
-  ScrollView,
-} from 'react-native';
+import { Modal, View, Text, StyleSheet, ActivityIndicator, Platform, Animated, Easing, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, G, Text as SvgText } from 'react-native-svg';
 import { useSubscription } from '@/context/SubscriptionContext';

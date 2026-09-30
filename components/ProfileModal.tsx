@@ -1,16 +1,6 @@
+import { TouchableOpacity, Switch } from '@/components/ui/FeedbackPressable';
 import React, { useState } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  ScrollView,
-  Switch,
-  TextInput,
-  Alert,
-} from 'react-native';
+import { Modal, View, Text, StyleSheet, Image, ScrollView, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';

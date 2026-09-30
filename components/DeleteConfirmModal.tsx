@@ -1,12 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { Modal, View, Text, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/context/ThemeContext';
@@ -112,7 +106,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                 style={[styles.itemNameText, { color: colors.textPrimary }]}
                 numberOfLines={2}
               >
-                "{itemName}"
+                &quot;{itemName}&quot;
               </Text>
             </View>
           ) : null}

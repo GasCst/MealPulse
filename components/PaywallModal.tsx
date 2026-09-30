@@ -1,15 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  Platform,
-} from 'react-native';
+import { Modal, View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, MonetizationPlans } from '@/constants/theme';
@@ -28,6 +19,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
   const { t } = useLanguage();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('weekly');
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [timeLeft, setTimeLeft] = useState(599); // 09:59 countdown
   const [showSpinWheelModal, setShowSpinWheelModal] = useState(false);
 
@@ -108,6 +100,8 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
   };
 
   const handleRestore = async () => {
+    if (loading) return;
+    setRestoring(true);
     try {
       setLoading(true);
       const restored = await restorePurchases();
@@ -135,6 +129,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
       });
     } finally {
       setLoading(false);
+      setRestoring(false);
     }
   };
 
@@ -313,8 +308,9 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
 
           {/* Footer Links */}
           <View style={styles.footerRow}>
-            <TouchableOpacity onPress={handleRestore}>
-              <Text style={styles.footerLink}>{t('restore_purchases')}</Text>
+            <TouchableOpacity onPress={handleRestore} disabled={loading} accessibilityState={{ busy: restoring, disabled: loading }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {restoring && <ActivityIndicator size="small" color="#94A3B8" />}
+              <Text style={styles.footerLink}>{restoring ? t('loading_generic') : t('restore_purchases')}</Text>
             </TouchableOpacity>
             <Text style={styles.footerDivider}>•</Text>
             <TouchableOpacity onPress={() => Alert.alert('Terms of Service', 'Standard Apple EULA & MealPulse Terms.')}>

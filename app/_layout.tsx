@@ -20,9 +20,11 @@ import { NotificationPromptModal } from '@/components/NotificationPromptModal';
 import { Platform } from 'react-native';
 import { AdMobService } from '@/services/adMobService';
 import { prefetchRemoteConfig } from '@/services/remoteConfigService';
+import { buttonSoundService } from '@/services/buttonSoundService';
 
 export default function RootLayout() {
   useEffect(() => {
+    void buttonSoundService.initialize();
     // Sincronizza dinamicamente la configurazione remota da Supabase (TTS URL, feature flags)
     prefetchRemoteConfig().catch(() => {});
 
@@ -39,6 +41,7 @@ export default function RootLayout() {
         console.warn('[RootLayout] MobileAds init warning:', e);
       }
     }
+    return () => { void buttonSoundService.release(); };
   }, []);
 
   return (

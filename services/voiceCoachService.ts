@@ -28,7 +28,8 @@ export const DEFAULT_COACH_VOICE: ModelVoiceItem = {
 
 // Listeners per aggiornamento real-time in tutta l'app
 type VoiceChangeListener = (voice: ModelVoiceItem) => void;
-type PlaybackStateListener = (isPlaying: boolean, isLoading: boolean, currentVoiceId?: string) => void;
+export type VoicePlaybackScope = 'briefing' | 'water' | 'recap' | 'celebration' | 'preview' | 'coach';
+type PlaybackStateListener = (isPlaying: boolean, isLoading: boolean, currentVoiceId?: string, scope?: VoicePlaybackScope) => void;
 
 class VoiceCoachService {
   private preferredVoice: ModelVoiceItem = DEFAULT_COACH_VOICE;
@@ -41,6 +42,9 @@ class VoiceCoachService {
   private isPlaying = false;
   private isLoading = false;
   private activeVoiceId: string | null = null;
+  private activeScope: VoicePlaybackScope = 'coach';
+  private speechGeneration = 0;
+  private pendingRequest: AbortController | null = null;
   private audioCache: Record<string, string> = {};
 
   constructor() {
@@ -48,6 +52,10 @@ class VoiceCoachService {
   }
 
   private async init() {
+    if (Platform.OS === 'web' && typeof window === 'undefined') {
+      this.isLoaded = true;
+      return;
+    }
     try {
       const stored = await AsyncStorage.getItem(PREFERRED_VOICE_STORAGE_KEY);
       if (stored) {
@@ -101,21 +109,22 @@ class VoiceCoachService {
 
   public subscribePlaybackState(cb: PlaybackStateListener): () => void {
     this.playbackListeners.add(cb);
-    cb(this.isPlaying, this.isLoading, this.activeVoiceId || undefined);
+    cb(this.isPlaying, this.isLoading, this.activeVoiceId || undefined, this.activeScope);
     return () => {
       this.playbackListeners.delete(cb);
     };
   }
 
-  private setPlaybackState(playing: boolean, loading: boolean, voiceId?: string) {
+  private setPlaybackState(playing: boolean, loading: boolean, voiceId?: string, scope?: VoicePlaybackScope) {
     this.isPlaying = playing;
     this.isLoading = loading;
     if (voiceId !== undefined) {
       this.activeVoiceId = voiceId;
     }
+    if (scope !== undefined) this.activeScope = scope;
     for (const cb of this.playbackListeners) {
       try {
-        cb(this.isPlaying, this.isLoading, this.activeVoiceId || undefined);
+        cb(this.isPlaying, this.isLoading, this.activeVoiceId || undefined, this.activeScope);
       } catch (e) {
         console.warn('[VoiceCoachService] Error in playback listener:', e);
       }
@@ -138,204 +147,138 @@ class VoiceCoachService {
   }
 
   public async stopAudio(): Promise<void> {
-    try {
-      Speech.stop();
-    } catch {}
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (this.currentWebAudio) {
-        try {
-          this.currentWebAudio.pause();
-          this.currentWebAudio.currentTime = 0;
-        } catch {}
-        this.currentWebAudio = null;
-      }
-    }
-
-    if (this.currentSound) {
-      try {
-        await this.currentSound.stopAsync();
-        await this.currentSound.unloadAsync();
-      } catch {}
-      this.currentSound = null;
-    }
-
+    this.speechGeneration++;
+    this.pendingRequest?.abort();
+    this.pendingRequest = null;
     this.setPlaybackState(false, false);
+    const webAudio = this.currentWebAudio;
+    this.currentWebAudio = null;
+    const sound = this.currentSound;
+    this.currentSound = null;
+    try { await Speech.stop(); } catch {}
+    if (webAudio) {
+      try { webAudio.pause(); webAudio.currentTime = 0; } catch {}
+    }
+    if (sound) {
+      try { await sound.stopAsync(); await sound.unloadAsync(); } catch {}
+    }
   }
 
-  /**
-   * Fallback istantaneo a Expo Speech se XTTS backend non è raggiungibile
-   */
-  private async playNativeSpeechFallback(text: string, voiceId: string, language: LanguageCode): Promise<() => Promise<void>> {
-    console.log('[VoiceCoachService] Using Expo Speech native synthesizer fallback for voice:', voiceId);
-    this.setPlaybackState(true, false, voiceId);
-
-    try {
-      Speech.stop();
-    } catch {}
-
-    const cleanText = text.replace(/\.{2,}/g, '. ').replace(/[_*#]/g, '').trim();
-
-    return new Promise((resolve) => {
-      Speech.speak(cleanText, {
-        language,
-        pitch: 1.0,
-        rate: 1.0,
-        onStart: () => {
-          this.setPlaybackState(true, false, voiceId);
-        },
-        onDone: () => {
-          this.setPlaybackState(false, false, voiceId);
-        },
-        onStopped: () => {
-          this.setPlaybackState(false, false, voiceId);
-        },
-        onError: (err) => {
-          console.warn('[VoiceCoachService] Expo Speech error:', err);
-          this.setPlaybackState(false, false, voiceId);
-        },
-      });
-
-      resolve(async () => {
-        try {
-          Speech.stop();
-        } catch {}
-        this.setPlaybackState(false, false, voiceId);
-      });
+  private async playNativeSpeechFallback(
+    text: string, voiceId: string, language: LanguageCode, generation: number
+  ): Promise<() => Promise<void>> {
+    this.setPlaybackState(false, true, voiceId);
+    const update = (playing: boolean) => {
+      if (generation === this.speechGeneration) this.setPlaybackState(playing, false, voiceId);
+    };
+    Speech.speak(text.replace(/\.{2,}/g, '. ').replace(/[_*#]/g, '').trim(), {
+      language, pitch: 1, rate: 1,
+      onStart: () => update(true),
+      onDone: () => update(false),
+      onStopped: () => update(false),
+      onError: () => update(false),
     });
+    return async () => { if (generation === this.speechGeneration) await this.stopAudio(); };
   }
 
-  /**
-   * Riproduce una frase usando la voce specificata tramite il server locale con cache e fallback del dispositivo.
-   */
+  /** Loading covers endpoint lookup, generation, download and player preparation. */
   public async playSpeech(
-    text: string,
-    voiceId?: string
+    text: string, voiceId?: string, scope: VoicePlaybackScope = 'coach'
   ): Promise<(() => Promise<void>) | null> {
+    const generation = this.speechGeneration + 1;
     await this.stopAudio();
-
+    if (generation !== this.speechGeneration) return null;
     const currentVoice = voiceId || (await this.getPreferredCoachVoice()).id;
-    this.setPlaybackState(false, true, currentVoice);
-
+    if (generation !== this.speechGeneration) return null;
+    this.setPlaybackState(false, true, currentVoice, scope);
     const language = await getVoiceLanguage();
+    if (generation !== this.speechGeneration) return null;
     text = cleanSpokenText(text);
     const cacheKey = speechCacheKey(text, currentVoice, language);
     const cachedUri = this.audioCache[cacheKey];
-
     if (cachedUri) {
-      try {
-        return await this.playFromUri(cachedUri, currentVoice);
-      } catch (e) {
-        console.warn('[VoiceCoachService] Cache playback failed, refetching:', e);
-      }
+      try { return await this.playFromUri(cachedUri, currentVoice, generation); }
+      catch { delete this.audioCache[cacheKey]; }
     }
-
-    if (Platform.OS !== 'web') {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          allowsRecordingIOS: false,
-          staysActiveInBackground: false,
-          playThroughEarpieceAndroid: false,
-          shouldDuckAndroid: true,
-        });
-      } catch (e) {
-        console.warn('[VoiceCoachService] Audio mode config error:', e);
-      }
-    }
-
+    const controller = new AbortController();
+    this.pendingRequest = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 28000);
     try {
+      if (Platform.OS !== 'web') {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true, allowsRecordingIOS: false,
+          staysActiveInBackground: false, playThroughEarpieceAndroid: false,
+          shouldDuckAndroid: true,
+        }).catch(() => {});
+      }
       const baseUrl = await getDynamicTtsApiUrl();
-      const endpoint = `${baseUrl}/api/v1/tts/roast`;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 28000);
-
-      const response = await fetch(endpoint, {
+      if (generation !== this.speechGeneration) return null;
+      const response = await fetch(`${baseUrl}/api/v1/tts/roast`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'audio/wav',
-        },
-        body: JSON.stringify({
-          text,
-          voice: currentVoice,
-          language,
-        }),
+        headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' },
+        body: JSON.stringify({ text, voice: currentVoice, language }),
         signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`TTS server HTTP ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`TTS server HTTP ${response.status}`);
+      let uri: string;
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         const blob = await response.blob();
-        const audioUrl = URL.createObjectURL(blob);
-        this.audioCache[cacheKey] = audioUrl;
-        return await this.playFromUri(audioUrl, currentVoice);
+        if (generation !== this.speechGeneration) return null;
+        uri = URL.createObjectURL(blob);
+      } else {
+        const buffer = await response.arrayBuffer();
+        if (generation !== this.speechGeneration) return null;
+        let binary = '';
+        for (const byte of new Uint8Array(buffer)) binary += String.fromCharCode(byte);
+        uri = `${FileSystem.cacheDirectory}coach_${currentVoice}_${Date.now()}.wav`;
+        await FileSystem.writeAsStringAsync(uri, btoa(binary), { encoding: FileSystem.EncodingType.Base64 });
       }
-
-      // Native iOS / Android
-      const arrayBuffer = await response.arrayBuffer();
-      let binary = '';
-      const bytes = new Uint8Array(arrayBuffer);
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64Audio = btoa(binary);
-      const tempWavPath = `${FileSystem.cacheDirectory}coach_${currentVoice}_${Date.now()}.wav`;
-
-      await FileSystem.writeAsStringAsync(tempWavPath, base64Audio, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      this.audioCache[cacheKey] = tempWavPath;
-      return await this.playFromUri(tempWavPath, currentVoice);
-    } catch (err) {
-      console.warn('[VoiceCoachService] XTTS server unreachable or timed out, triggering instant native speech fallback:', err);
-      return await this.playNativeSpeechFallback(text, currentVoice, language);
+      if (generation !== this.speechGeneration) return null;
+      this.audioCache[cacheKey] = uri;
+      return await this.playFromUri(uri, currentVoice, generation);
+    } catch (error) {
+      // Switching features or cancelling must not start a stale native fallback.
+      if (generation !== this.speechGeneration) return null;
+      console.warn('[VoiceCoachService] Server audio unavailable; using device speech:', error);
+      return await this.playNativeSpeechFallback(text, currentVoice, language, generation);
+    } finally {
+      clearTimeout(timeoutId);
+      if (this.pendingRequest === controller) this.pendingRequest = null;
     }
   }
 
-  private async playFromUri(uri: string, voiceId: string): Promise<() => Promise<void>> {
+  private async playFromUri(uri: string, voiceId: string, generation: number): Promise<() => Promise<void>> {
+    const update = (playing: boolean) => {
+      if (generation === this.speechGeneration) this.setPlaybackState(playing, false, voiceId);
+    };
+    const stop = async () => { if (generation === this.speechGeneration) await this.stopAudio(); };
+    if (generation !== this.speechGeneration) return async () => {};
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const audio = new (window as any).Audio(uri);
+      const audio = new window.Audio(uri);
       this.currentWebAudio = audio;
-
-      audio.onplay = () => this.setPlaybackState(true, false, voiceId);
-      audio.onpause = () => this.setPlaybackState(false, false, voiceId);
-      audio.onended = () => this.setPlaybackState(false, false, voiceId);
-      audio.onerror = () => this.setPlaybackState(false, false, voiceId);
-
+      audio.onplay = () => update(true);
+      audio.onpause = () => update(false);
+      audio.onended = () => update(false);
+      audio.onerror = () => update(false);
       await audio.play();
-      this.setPlaybackState(true, false, voiceId);
-
-      return () => this.stopAudio();
+      update(true);
+      return stop;
     }
-
-    const { sound } = await Audio.Sound.createAsync(
-      { uri },
-      { shouldPlay: true },
-      (status) => {
-        if (status.isLoaded) {
-          if (status.didJustFinish) {
-            this.setPlaybackState(false, false, voiceId);
-          } else {
-            this.setPlaybackState(status.isPlaying, false, voiceId);
-          }
-        } else {
-          this.setPlaybackState(false, false, voiceId);
-        }
-      }
-    );
-
+    let started = false;
+    const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false }, status => {
+      if (status.isLoaded) {
+        if (status.isPlaying) { started = true; update(true); }
+        else if (status.didJustFinish || started) update(false);
+      } else if (status.error) update(false);
+    });
+    if (generation !== this.speechGeneration) {
+      await sound.unloadAsync();
+      return async () => {};
+    }
     this.currentSound = sound;
-    this.setPlaybackState(true, false, voiceId);
-
-    return () => this.stopAudio();
+    await sound.playAsync();
+    update(true);
+    return stop;
   }
 
   // ==========================================
@@ -398,7 +341,7 @@ ${spokenTextRules(activeVoice.id, language)}`;
     const remainingGlasses = Math.ceil(remainingMl / 250);
 
     if (language !== 'it' || isNeapolitanVoice(activeVoice.id)) {
-      await this.playSpeech(coachFallback('water', language, activeVoice.id, { glasses: remainingGlasses }), activeVoice.id);
+      await this.playSpeech(coachFallback('water', language, activeVoice.id, { glasses: remainingGlasses }), activeVoice.id, 'water');
       return;
     }
 
@@ -437,7 +380,7 @@ ${spokenTextRules(activeVoice.id, language)}`;
       }
     }
 
-    await this.playSpeech(phrase, activeVoice.id);
+    await this.playSpeech(phrase, activeVoice.id, 'water');
   }
 
   // ==========================================

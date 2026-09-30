@@ -1,14 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Linking,
-  Alert,
-} from 'react-native';
+import { Modal, View, Text, StyleSheet, ScrollView, Linking, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -298,13 +290,11 @@ export const HealthAppsHubModal: React.FC<HealthAppsHubModalProps> = ({
           <TouchableOpacity
             style={[styles.syncActionBtn, { backgroundColor: '#BEF264' }]}
             onPress={handleSyncNow}
+            disabled={healthSyncStatus === 'syncing'}
+            accessibilityState={{ busy: healthSyncStatus === 'syncing', disabled: healthSyncStatus === 'syncing' }}
             activeOpacity={0.8}
           >
-            <Ionicons
-              name={healthSyncStatus === 'syncing' ? 'sync' : 'refresh-circle'}
-              size={22}
-              color="#0F172A"
-            />
+            {healthSyncStatus === 'syncing' ? <ActivityIndicator color="#0F172A" /> : <Ionicons name="refresh-circle" size={22} color="#0F172A" />}
             <Text style={styles.syncActionBtnText}>
               {healthSyncStatus === 'syncing' ? 'Sincronizzazione in corso...' : 'Sincronizza Dati Ora'}
             </Text>

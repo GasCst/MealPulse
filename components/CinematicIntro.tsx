@@ -1,13 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useCallback, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  useWindowDimensions,
-  TouchableOpacity,
-  ImageBackground,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, ImageBackground, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
@@ -460,9 +453,9 @@ const CTAScene = React.memo<CTASceneProps>(({ scrollY, index, screenHeight, scre
           </Animated.View>
 
           <Animated.View style={textStyle}>
-            <Text style={styles.ctaTitle}>Let's Build{'\n'}Your Plan</Text>
+            <Text style={styles.ctaTitle}>Let&apos;s Build{'\n'}Your Plan</Text>
             <Text style={styles.ctaSubtitle}>
-              Answer 7 quick questions and we'll calculate your perfect daily nutrition targets
+              Answer 7 quick questions and we&apos;ll calculate your perfect daily nutrition targets
             </Text>
           </Animated.View>
 

@@ -1,18 +1,13 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-  Animated as RNAnimated,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '@/context/ThemeContext';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useVoiceAction } from '@/hooks/useVoiceAction';
+import { useLanguage } from '@/context/LanguageContext';
 import { voiceCoachService } from '@/services/voiceCoachService';
 import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
 import { VoiceFeatureAdModal } from './VoiceFeatureAdModal';
@@ -27,11 +22,11 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
   targetProtein,
 }) => {
   const { colors, isDarkMode } = useTheme();
+  const { t } = useLanguage();
   const { isPro, openPaywall } = useSubscription();
+  const { isPlaying, isLoading, run: runBriefing } = useVoiceAction('briefing');
   const [coachVoice, setCoachVoice] = useState<ModelVoiceItem | null>(null);
   const [briefingText, setBriefingText] = useState<string>('');
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
 
@@ -57,14 +52,9 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
       }
     });
 
-    const unsubPlayback = voiceCoachService.subscribePlaybackState((playing, loading) => {
-      setIsPlaying(playing);
-      setIsLoading(loading);
-    });
 
     return () => {
       unsubVoice();
-      unsubPlayback();
     };
   }, [targetCalories, targetProtein]);
 
@@ -103,8 +93,7 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
     };
   }, [isPlaying]);
 
-  const startBriefingPlayback = async () => {
-    setIsLoading(true);
+  const startBriefingPlayback = () => runBriefing(async () => {
     try {
       const activeVoice = coachVoice || (await voiceCoachService.getPreferredCoachVoice());
       let text = briefingText;
@@ -118,13 +107,11 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
       }
 
       setIsExpanded(true);
-      await voiceCoachService.playSpeech(text, activeVoice.id);
+      await voiceCoachService.playSpeech(text, activeVoice.id, 'briefing');
     } catch (e) {
       console.warn('[MorningBriefing] Play error:', e);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  });
 
   const handleTogglePlay = async () => {
     if (Platform.OS !== 'web') {
@@ -189,7 +176,7 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
             </View>
           </View>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={isExpanded ? 4 : 1}>
-            {briefingText
+            {isLoading ? t('voice_loading_hint') : briefingText
               ? briefingText
               : `Ascolta il riassunto di oggi (${targetCalories || 2100} kcal) dal tuo coach.`}
           </Text>
@@ -203,6 +190,8 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
           ]}
           onPress={handleTogglePlay}
           disabled={isLoading}
+          accessibilityLabel={t(isLoading ? 'voice_loading' : isPlaying ? 'voice_stop' : 'voice_listen')}
+          accessibilityState={{ busy: isLoading, disabled: isLoading }}
           activeOpacity={0.85}
         >
           {isLoading ? (

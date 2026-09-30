@@ -1,5 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -14,6 +15,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { voiceCoachService } from '@/services/voiceCoachService';
+import { useVoiceAction } from '@/hooks/useVoiceAction';
 import { VoiceFeatureAdModal } from './VoiceFeatureAdModal';
 
 interface WaterTrackerCardProps {
@@ -32,7 +34,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
     updateWaterIntake,
   } = useSubscription();
   const [showAdModal, setShowAdModal] = useState(false);
-  const [isCoachPlaying, setIsCoachPlaying] = useState(false);
+  const { isPlaying: isCoachPlaying, isLoading: isCoachLoading, run: runWaterVoice } = useVoiceAction('water');
 
   const getDateKey = (d?: Date | string): string => {
     if (!d) return new Date().toISOString().split('T')[0];
@@ -49,13 +51,6 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
   useEffect(() => {
     loadWaterIntakeForDate(currentDateKey);
   }, [currentDateKey]);
-
-  useEffect(() => {
-    const unsub = voiceCoachService.subscribePlaybackState((playing) => {
-      setIsCoachPlaying(playing);
-    });
-    return () => unsub();
-  }, []);
 
   const targetMl = waterTarget || 2500;
   const percent = Math.min(100, Math.round((currentIntake / targetMl) * 100));
@@ -94,7 +89,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
       return;
     }
 
-    await voiceCoachService.playWaterCheer(forcedIntake !== undefined ? forcedIntake : currentIntake, targetMl);
+    await runWaterVoice(() => voiceCoachService.playWaterCheer(forcedIntake !== undefined ? forcedIntake : currentIntake, targetMl));
   };
 
   const handleAdd = (amount: number) => {
@@ -102,7 +97,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
     const newIntake = currentIntake + amount;
     updateWaterIntake(amount, currentDateKey);
     if (isPro) {
-      voiceCoachService.playWaterCheer(newIntake, targetMl).catch(() => {});
+      runWaterVoice(() => voiceCoachService.playWaterCheer(newIntake, targetMl)).catch(() => {});
     }
   };
 
@@ -138,14 +133,17 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
               },
             ]}
             onPress={() => handlePlayCoachWater()}
+            disabled={isCoachLoading}
+            accessibilityLabel={t(isCoachLoading ? 'voice_loading' : isCoachPlaying ? 'voice_stop' : 'voice_listen')}
+            accessibilityState={{ busy: isCoachLoading, disabled: isCoachLoading }}
             activeOpacity={0.8}
           >
-            <Ionicons
+            {isCoachLoading ? <ActivityIndicator size="small" color={colors.lime} /> : <Ionicons
               name={isCoachPlaying ? 'volume-high' : 'mic'}
               size={13}
               color={colors.lime}
-            />
-            <Text style={[styles.coachWaterBtnText, { color: colors.lime }]}>Coach</Text>
+            />}
+            <Text style={[styles.coachWaterBtnText, { color: colors.lime }]}>{isCoachLoading ? t('voice_loading') : 'Coach'}</Text>
           </TouchableOpacity>
           <Text style={[styles.percentBadge, { backgroundColor: 'rgba(56, 189, 248, 0.18)', color: '#38BDF8' }]}>
             {percent}%
@@ -224,7 +222,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
         onClose={() => setShowAdModal(false)}
         onUnlocked={() => {
           setShowAdModal(false);
-          voiceCoachService.playWaterCheer(currentIntake, targetMl);
+          runWaterVoice(() => voiceCoachService.playWaterCheer(currentIntake, targetMl)).catch(() => {});
         }}
         onGoPro={() => openPaywall('water_coach_voice')}
       />

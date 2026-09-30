@@ -1,13 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -26,6 +19,8 @@ import { SpinWheelModal } from '@/components/SpinWheelModal';
 import { VoiceSelectorModal, ModelVoiceItem } from '@/components/VoiceSelectorModal';
 import { voiceCoachService, DEFAULT_COACH_VOICE } from '@/services/voiceCoachService';
 import { VoiceFeatureAdModal } from '@/components/VoiceFeatureAdModal';
+import { useVoiceAction } from '@/hooks/useVoiceAction';
+import { useButtonSounds } from '@/hooks/useButtonSounds';
 
 export default function MonetizationScreen() {
   const {
@@ -62,7 +57,8 @@ export default function MonetizationScreen() {
 
   const [activeCoachVoice, setActiveCoachVoice] = useState<ModelVoiceItem>(DEFAULT_COACH_VOICE);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
-  const [isPlayingCoachVoice, setIsPlayingCoachVoice] = useState(false);
+  const { isPlaying: isPlayingCoachVoice, isLoading: isLoadingCoachVoice, run: runPreview } = useVoiceAction('preview');
+  const { enabled: buttonSounds, setEnabled: setButtonSounds } = useButtonSounds();
   const [showVoiceAdModal, setShowVoiceAdModal] = useState(false);
   const [pendingSelectedVoice, setPendingSelectedVoice] = useState<ModelVoiceItem | null>(null);
 
@@ -70,16 +66,12 @@ export default function MonetizationScreen() {
     const unsubVoice = voiceCoachService.subscribePreferredVoice((v) => {
       setActiveCoachVoice(v);
     });
-    const unsubPlay = voiceCoachService.subscribePlaybackState((playing) => {
-      setIsPlayingCoachVoice(playing);
-    });
     return () => {
       unsubVoice();
-      unsubPlay();
     };
   }, []);
 
-  const startSampleCoachVoicePlayback = async (voiceToUse?: ModelVoiceItem) => {
+  const startSampleCoachVoicePlayback = (voiceToUse?: ModelVoiceItem) => runPreview(async () => {
     const v = voiceToUse || activeCoachVoice;
     const samplePhrase =
       v.id === 'zio_italiano'
@@ -88,8 +80,8 @@ export default function MonetizationScreen() {
         ? "Benvenuto in cucina!... Meno scuse, zero carboidrati extra e massima disciplina!"
         : `Inizializzazione completata... Sono ${v.name}, il tuo assistente nutrizionale personale!`;
 
-    await voiceCoachService.playSpeech(samplePhrase, v.id);
-  };
+    await voiceCoachService.playSpeech(samplePhrase, v.id, 'preview');
+  });
 
   const handleSelectCoachVoice = async (voice: ModelVoiceItem) => {
     setShowVoiceModal(false);
@@ -232,6 +224,8 @@ export default function MonetizationScreen() {
   const CustomToggle = ({ isOn, onToggle }: CustomToggleProps) => {
     return (
       <TouchableOpacity 
+        accessibilityRole="switch"
+        accessibilityState={{ checked: isOn }}
         activeOpacity={0.8}
         onPress={onToggle}
         style={[styles.toggle, { backgroundColor: isOn ? theme.textPrimary : theme.toggleOff }]}
@@ -462,6 +456,7 @@ export default function MonetizationScreen() {
                   { backgroundColor: theme.lime, flex: 1, marginTop: 0, paddingVertical: 10 },
                 ]}
                 onPress={() => setShowVoiceModal(true)}
+                disabled={isLoadingCoachVoice}
                 activeOpacity={0.85}
               >
                 <Ionicons name="mic" size={16} color="#14181B" />
@@ -481,13 +476,16 @@ export default function MonetizationScreen() {
                   },
                 ]}
                 onPress={handlePlaySampleCoachVoice}
+                disabled={isLoadingCoachVoice}
+                accessibilityLabel={t(isLoadingCoachVoice ? 'voice_loading' : isPlayingCoachVoice ? 'voice_stop' : 'voice_try')}
+                accessibilityState={{ busy: isLoadingCoachVoice, disabled: isLoadingCoachVoice }}
                 activeOpacity={0.85}
               >
-                <Ionicons
+                {isLoadingCoachVoice ? <ActivityIndicator size="small" color={theme.textPrimary} /> : <Ionicons
                   name={isPlayingCoachVoice ? 'pause' : 'volume-high'}
                   size={16}
                   color={isPlayingCoachVoice ? '#FFFFFF' : theme.textPrimary}
-                />
+                />}
                 <Text
                   style={[
                     styles.ctaText,
@@ -498,10 +496,23 @@ export default function MonetizationScreen() {
                     },
                   ]}
                 >
-                  {isPlayingCoachVoice ? 'Ferma' : 'Prova'}
+                  {t(isLoadingCoachVoice ? 'voice_loading' : isPlayingCoachVoice ? 'voice_stop' : 'voice_try')}
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+
+        <View style={[styles.rowCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, marginBottom: 18 }]}>
+          <View style={styles.rowTop}>
+            <View style={[styles.rowIco, { backgroundColor: theme.iconBgBase }]}>
+              <Ionicons name={buttonSounds ? 'volume-medium-outline' : 'volume-mute-outline'} size={18} color={theme.limeDeep} />
+            </View>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('button_sounds')}</Text>
+              <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{t('button_sounds_help')}</Text>
+            </View>
+            <CustomToggle isOn={buttonSounds} onToggle={() => { void setButtonSounds(!buttonSounds); }} />
           </View>
         </View>
 
@@ -633,10 +644,12 @@ export default function MonetizationScreen() {
                 <TouchableOpacity
                   style={[styles.syncNowBtn, { backgroundColor: isDarkMode ? '#1F382B' : '#E8F7D0' }]}
                   onPress={() => triggerHealthSync()}
+                  disabled={healthSyncStatus === 'syncing'}
+                  accessibilityState={{ busy: healthSyncStatus === 'syncing', disabled: healthSyncStatus === 'syncing' }}
                   activeOpacity={0.75}
                 >
-                  <Ionicons name={healthSyncStatus === 'syncing' ? 'sync' : 'refresh'} size={14} color={theme.limeDeep} />
-                  <Text style={[styles.syncNowBtnText, { color: theme.limeDeep }]}>{healthSyncStatus === 'syncing' ? '...' : t('sync_now')}</Text>
+                  {healthSyncStatus === 'syncing' ? <ActivityIndicator size="small" color={theme.limeDeep} /> : <Ionicons name="refresh" size={14} color={theme.limeDeep} />}
+                  <Text style={[styles.syncNowBtnText, { color: theme.limeDeep }]}>{healthSyncStatus === 'syncing' ? t('loading_generic') : t('sync_now')}</Text>
                 </TouchableOpacity>
               </View>
             )}

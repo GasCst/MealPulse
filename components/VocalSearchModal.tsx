@@ -1,16 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  TextInput,
-  ActivityIndicator,
-  ScrollView,
-  Animated,
-  Platform,
-} from 'react-native';
+import { Modal, View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -472,7 +462,7 @@ export const VocalSearchModal: React.FC<VocalSearchModalProps> = ({
                     activeOpacity={0.7}
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={14} color="#8B5CF6" />
-                    <Text style={[styles.presetText, { color: colors.textPrimary }]}>"{p}"</Text>
+                    <Text style={[styles.presetText, { color: colors.textPrimary }]}>&quot;{p}&quot;</Text>
                   </TouchableOpacity>
                 ))}
               </View>

@@ -1,5 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 
 interface VoiceFeatureAdModalProps {

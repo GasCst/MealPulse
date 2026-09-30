@@ -1,17 +1,6 @@
+import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  ActivityIndicator,
-  Animated as RNAnimated,
-} from 'react-native';
+import { View, Text, Modal, Image, ScrollView, StyleSheet, SafeAreaView, Platform, ActivityIndicator, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -172,6 +161,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
   // Cache locale dei file audio scaricati per i singoli personaggi durante la sessione di scansione
   const audioCacheRef = useRef<Record<string, string>>({});
   const playbackReqIdRef = useRef<number>(0);
+  const audioRequestRef = useRef<AbortController | null>(null);
 
   // Sblocco Personaggi Roast (Freemium + Pro + Rewarded Ad)
   const [unlockedCharacters, setUnlockedCharacters] = useState<Record<string, boolean>>({});
@@ -298,7 +288,13 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
     };
   }, [isPlaying]);
 
-  const stopAndUnloadAudio = async () => {
+  const stopAndUnloadAudio = async (invalidate = true) => {
+    if (invalidate) {
+      playbackReqIdRef.current++;
+      audioRequestRef.current?.abort();
+      audioRequestRef.current = null;
+      setIsLoadingAudio(false);
+    }
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       if (webAudioRef.current) {
         try {
@@ -309,14 +305,12 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       }
     }
 
-    if (soundRef.current) {
-      try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-      } catch {}
-      soundRef.current = null;
-    }
+    const sound = soundRef.current;
+    soundRef.current = null;
     setIsPlaying(false);
+    if (sound) {
+      try { await sound.stopAsync(); await sound.unloadAsync(); } catch {}
+    }
   };
 
   const cleanupAudioCache = async () => {
@@ -342,10 +336,14 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
     voiceItem?: ModelVoiceItem
   ) => {
     const reqId = ++playbackReqIdRef.current;
-
-    await stopAndUnloadAudio();
+    const updatePlaying = (playing: boolean) => {
+      if (playbackReqIdRef.current === reqId) setIsPlaying(playing);
+    };
+    audioRequestRef.current?.abort();
     setIsLoadingAudio(true);
     setAudioError(null);
+    await stopAndUnloadAudio(false);
+    if (playbackReqIdRef.current !== reqId) return;
 
     // 0. GENERAZIONE TESTO ROAST DEDICATO CON GEMINI FLASH PER VOCI DEL MODELLO O PERSONAGGI COMICI
     const textKey = JSON.stringify([selectedVoice, language, data?.food_name, currentCalories]);
@@ -402,6 +400,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
         '';
     }
 
+    if (playbackReqIdRef.current !== reqId) return;
     if (!textToSpeak) {
       setIsLoadingAudio(false);
       return;
@@ -416,12 +415,13 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
         if (Platform.OS === 'web' && typeof window !== 'undefined') {
           const audio = new (window as any).Audio(cachedUri);
           webAudioRef.current = audio;
-          audio.onplay = () => setIsPlaying(true);
-          audio.onpause = () => setIsPlaying(false);
-          audio.onended = () => setIsPlaying(false);
-          audio.onerror = () => setIsPlaying(false);
-          setIsLoadingAudio(false);
+          audio.onplay = () => updatePlaying(true);
+          audio.onpause = () => updatePlaying(false);
+          audio.onended = () => updatePlaying(false);
+          audio.onerror = () => updatePlaying(false);
           await audio.play();
+          if (playbackReqIdRef.current !== reqId) { audio.pause(); return; }
+          setIsLoadingAudio(false);
           setIsPlaying(true);
           return;
         } else {
@@ -435,8 +435,9 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
 
             const { sound } = await Audio.Sound.createAsync(
               { uri: cachedUri },
-              { shouldPlay: true },
+              { shouldPlay: false },
               (status) => {
+                if (playbackReqIdRef.current !== reqId) return;
                 if (status.isLoaded) {
                   setIsPlaying(status.isPlaying);
                   if (status.didJustFinish) {
@@ -454,6 +455,8 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
             }
 
             soundRef.current = sound;
+            await sound.playAsync();
+            if (playbackReqIdRef.current !== reqId) return;
             setIsLoadingAudio(false);
             setIsPlaying(true);
             return;
@@ -465,8 +468,11 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
     }
 
     const baseUrl = await getDynamicTtsApiUrl(forceRefreshUrl);
+    if (playbackReqIdRef.current !== reqId) return;
     const endpoint = `${baseUrl}/api/v1/tts/roast`;
-
+    const controller = new AbortController();
+    audioRequestRef.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 28000);
     try {
       if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
@@ -477,6 +483,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       }
 
       const response = await fetch(endpoint, {
+        signal: controller.signal,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -501,23 +508,28 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       // 1. GESTIONE WEB BROWSER
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         const blob = await response.blob();
+        if (playbackReqIdRef.current !== reqId) return;
         const audioUrl = URL.createObjectURL(blob);
         audioCacheRef.current[audioKey] = audioUrl;
 
         const audio = new (window as any).Audio(audioUrl);
         webAudioRef.current = audio;
 
-        audio.onplay = () => setIsPlaying(true);
-        audio.onpause = () => setIsPlaying(false);
-        audio.onended = () => setIsPlaying(false);
-        audio.onerror = () => setIsPlaying(false);
+        audio.onplay = () => updatePlaying(true);
+        audio.onpause = () => updatePlaying(false);
+        audio.onended = () => updatePlaying(false);
+        audio.onerror = () => updatePlaying(false);
 
-        setIsLoadingAudio(false);
         try {
           await audio.play();
+          if (playbackReqIdRef.current !== reqId) { audio.pause(); return; }
+          setIsLoadingAudio(false);
           setIsPlaying(true);
-        } catch (playErr: any) {
+        } catch {
+          if (playbackReqIdRef.current !== reqId) return;
+          setIsLoadingAudio(false);
           setIsPlaying(false);
+          setAudioError(t('tts_retry'));
         }
         return;
       }
@@ -547,8 +559,9 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: tempWavPath },
-        { shouldPlay: true },
+        { shouldPlay: false },
         (status) => {
+          if (playbackReqIdRef.current !== reqId) return;
           if (status.isLoaded) {
             setIsPlaying(status.isPlaying);
             if (status.didJustFinish) {
@@ -566,6 +579,8 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       }
 
       soundRef.current = sound;
+      await sound.playAsync();
+      if (playbackReqIdRef.current !== reqId) return;
       setIsLoadingAudio(false);
       setIsPlaying(true);
       try {
@@ -577,6 +592,9 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       setIsLoadingAudio(false);
       setIsPlaying(false);
       setAudioError(`Server TTS non raggiungibile (${baseUrl})`);
+    } finally {
+      clearTimeout(timeout);
+      if (audioRequestRef.current === controller) audioRequestRef.current = null;
     }
   };
 
@@ -834,9 +852,11 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                           isLocked && styles.charPillLocked,
                         ]}
                         onPress={() => handleSelectCharacter(char)}
+                        disabled={isSelected && isLoadingAudio}
+                        accessibilityState={{ busy: isSelected && isLoadingAudio, disabled: isSelected && isLoadingAudio }}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.charEmoji}>{char.emoji}</Text>
+                        {isSelected && isLoadingAudio ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.charEmoji}>{char.emoji}</Text>}
                         <Text
                           style={[
                             styles.charName,
@@ -869,9 +889,11 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                           isCustomLocked && styles.charPillLocked,
                         ]}
                         onPress={() => handleSelectCustomVoice(customSelectedVoice)}
+                        disabled={isCustomSelected && isLoadingAudio}
+                        accessibilityState={{ busy: isCustomSelected && isLoadingAudio, disabled: isCustomSelected && isLoadingAudio }}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.charEmoji}>{customSelectedVoice.emoji}</Text>
+                        {isCustomSelected && isLoadingAudio ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.charEmoji}>{customSelectedVoice.emoji}</Text>}
                         <Text
                           style={[
                             styles.charName,
@@ -930,6 +952,8 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                     style={[styles.roastPlayBtn, { backgroundColor: colors.coral }]}
                     onPress={handleTogglePlayPause}
                     disabled={isLoadingAudio}
+                    accessibilityLabel={t(isLoadingAudio ? 'voice_loading' : isPlaying ? 'voice_stop' : 'voice_listen')}
+                    accessibilityState={{ busy: isLoadingAudio, disabled: isLoadingAudio }}
                     activeOpacity={0.8}
                   >
                     {isLoadingAudio ? (
@@ -985,7 +1009,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
 
                   <Text style={[styles.playerStatusLabel, { color: colors.textSecondary }]}>
                     {isLoadingAudio
-                      ? `Sintesi vocale ${activeChar.name}...`
+                      ? t('voice_loading_hint')
                       : isPlaying
                       ? `Recita ${activeChar.emoji}...`
                       : 'Tocca per ascoltare'}
@@ -996,9 +1020,11 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                   <TouchableOpacity
                     style={styles.roastErrorBox}
                     onPress={() => fetchAndPlayAudio(voice, true)}
+                    disabled={isLoadingAudio}
+                    accessibilityState={{ busy: isLoadingAudio, disabled: isLoadingAudio }}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="warning-outline" size={13} color="#FFA726" />
+                    {isLoadingAudio ? <ActivityIndicator size="small" color="#FFA726" /> : <Ionicons name="warning-outline" size={13} color="#FFA726" />}
                     <Text style={styles.roastErrorLabel}>
                       TTS non connesso • Tocca per riprovare
                     </Text>

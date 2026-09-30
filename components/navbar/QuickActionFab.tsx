@@ -1,13 +1,6 @@
+import { Pressable } from '@/components/ui/FeedbackPressable';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Dimensions,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Dimensions, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,

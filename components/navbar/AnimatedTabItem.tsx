@@ -1,5 +1,6 @@
+import { Pressable } from '@/components/ui/FeedbackPressable';
 import React from 'react';
-import { StyleSheet, Pressable, Text, Platform } from 'react-native';
+import { StyleSheet, Text, Platform } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withSpring,
