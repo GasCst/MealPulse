@@ -7,7 +7,7 @@ import { useSubscription } from '@/context/SubscriptionContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
 import { IOSInstallGuideModal } from '@/components/IOSInstallGuideModal';
-import { RadialFabExpander } from '@/components/navbar/RadialFabExpander';
+import { QuickActionFab } from '@/components/navbar/QuickActionFab';
 import { AnimatedTabItem } from '@/components/navbar/AnimatedTabItem';
 import { QuickLogModal } from '@/components/QuickLogModal';
 
@@ -23,7 +23,7 @@ export default function TabLayout() {
     if (isLoaded && !hasCompletedOnboarding) {
       router.replace('/onboarding' as any);
     }
-  }, [isLoaded, hasCompletedOnboarding]);
+  }, [isLoaded, hasCompletedOnboarding, router]);
 
   // 1. Azione Cibo -> Apre il selettore pasti rapido
   const handleAddFood = () => {
@@ -113,8 +113,8 @@ export default function TabLayout() {
                 inactiveColor={inactiveColor}
               />
 
-              {/* Pulsante Centrale: Espansore Radiale Dinamico "+" */}
-              <RadialFabExpander
+              {/* Pulsante centrale con pannello di azioni rapide */}
+              <QuickActionFab
                 onAddFood={handleAddFood}
                 onAddWater={handleAddWater}
                 onQuickScan={handleQuickScan}

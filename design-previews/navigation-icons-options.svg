@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 1080" role="img" aria-label="Tre opzioni di icone per la barra di navigazione di MealPulse AI">
+  <defs>
+    <linearGradient id="background" x2="1" y2="1"><stop stop-color="#F5FBF3"/><stop offset="1" stop-color="#EAF4ED"/></linearGradient>
+    <linearGradient id="lime" x2="0.9" y2="1"><stop stop-color="#A3E635"/><stop offset="1" stop-color="#65B72B"/></linearGradient>
+    <linearGradient id="dark" x2="1" y2="1"><stop stop-color="#223D2B"/><stop offset="1" stop-color="#10231A"/></linearGradient>
+    <filter id="shadow" x="-25%" y="-50%" width="150%" height="210%"><feDropShadow dx="0" dy="11" stdDeviation="14" flood-color="#143723" flood-opacity="0.09"/></filter>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#77C829" flood-opacity="0.4"/></filter>
+
+    <!-- Small illustrated symbols can be redrawn as native SVG paths. -->
+    <g id="line-home" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="0" cy="2" r="11"/><path d="M-4 2c3 3 6 3 9 0M-20-12v10m-4-10v10m8-10v10m-4 0v15m40-25c-5 1-7 5-7 9 0 3 2 5 5 5h2v8"/><path d="M2-16c7-5 11-4 12-4-1 8-6 11-11 10" stroke-width="2.2"/>
+    </g>
+    <g id="line-progress" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-22 16h44M-17 13V3h7v10M-4 13v-8h7v8M10 13V-3h7v16"/><path d="m-18-8 11-4 9 3 16-11m-7 0h7v7"/><circle cx="-18" cy="-8" r="1.6" fill="currentColor" stroke="none"/>
+    </g>
+    <g id="line-rewards" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m-14-21 6 13m22-13L8-8M-14-21h8l6 11 6-11h8"/><circle cy="4" r="13"/><path d="m0-4 2.4 5 5.5.8-4 4 .9 5.4L0 8.7l-4.8 2.5.9-5.4-4-4 5.5-.8z" fill="currentColor" stroke="none"/>
+    </g>
+    <g id="line-pro" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m-20-8 7 18h26l7-18-11 7-9-15-9 15zM-11 15h22"/><circle cx="-20" cy="-10" r="2.3" fill="currentColor" stroke="none"/><circle cx="0" cy="-17" r="2.3" fill="currentColor" stroke="none"/><circle cx="20" cy="-10" r="2.3" fill="currentColor" stroke="none"/><path d="M17-20v-6m-3 3h6" stroke-width="1.9"/>
+    </g>
+
+    <g id="solid-home"><path d="M0-22 23-4v24H-23V-4z" fill="#203D29"/><path d="M-14 2h28" stroke="#A3E635" stroke-width="3" stroke-linecap="round"/><circle cx="0" cy="8" r="7" fill="none" stroke="#F5FFF0" stroke-width="3"/><path d="M-18-5v16m36-16v16" stroke="#F5FFF0" stroke-width="2.7" stroke-linecap="round"/></g>
+    <g id="solid-progress"><path d="M-20 18V7h7v11zM-7 18V-1H0v19zM6 18V-10h7v28z" fill="#203D29"/><path d="m-22-10 9-7 10 4 20-11m-7 0h7v7" fill="none" stroke="#7CC728" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g>
+    <g id="solid-rewards"><path d="m-17-22 9 17h16l9-17H6L0-12l-6-10z" fill="#F0A831"/><circle cy="7" r="15" fill="#F0A831"/><circle cy="7" r="11" fill="#FFF3CF"/><path d="m0-1 2.4 5 5.4.8-3.9 3.9.9 5.4L0 11.7l-4.8 2.4.9-5.4-3.9-3.9 5.4-.8z" fill="#B4760F"/></g>
+    <g id="solid-pro"><path d="m-23-9 9 21h28l9-21-13 7L0-18-10-2z" fill="#223D2B"/><path d="M-14 16h28" stroke="#223D2B" stroke-width="4" stroke-linecap="round"/><path d="m0-13 2 5 5 .5-4 4 1 5L0-1l-4 2.5 1-5-4-4 5-.5z" fill="#BDF16F"/></g>
+  </defs>
+
+  <rect width="1200" height="1080" fill="url(#background)"/>
+  <text x="80" y="60" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="800" fill="#183225">Nuove icone per MealPulse AI</text>
+  <text x="80" y="92" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#547062">Le quattro destinazioni hanno un simbolo proprio. Il pulsante + resta al centro.</text>
+
+  <!-- A: bright illustrated tiles -->
+  <g filter="url(#shadow)"><rect x="80" y="122" width="1040" height="278" rx="30" fill="#FFFFFF"/></g>
+  <rect x="102" y="143" width="44" height="36" rx="11" fill="#E8F8D8"/>
+  <text x="124" y="168" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="21" font-weight="900" fill="#428C20">A</text>
+  <text x="160" y="166" font-family="system-ui,-apple-system,sans-serif" font-size="24" font-weight="800" fill="#173322">Illustrato</text>
+  <text x="102" y="197" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#6B7F72">Colori dedicati, sfondi morbidi e icone con piccoli dettagli.</text>
+  <rect x="101" y="222" width="998" height="153" rx="24" fill="#FBFDFC" stroke="#E3EBE4"/>
+  <rect x="155" y="244" width="66" height="66" rx="20" fill="#E9F8E6"/><g transform="translate(188 277)" color="#228852"><use xlink:href="#line-home"/></g>
+  <rect x="353" y="244" width="74" height="66" rx="20" fill="url(#lime)"/><g transform="translate(390 277)" color="#183622"><use xlink:href="#line-progress"/></g>
+  <rect x="777" y="244" width="66" height="66" rx="20" fill="#FFF3DC"/><g transform="translate(810 277)" color="#C58515"><use xlink:href="#line-rewards"/></g>
+  <rect x="979" y="244" width="66" height="66" rx="20" fill="#EEEAF9"/><g transform="translate(1012 277)" color="#7455B8"><use xlink:href="#line-pro"/></g>
+  <circle cx="600" cy="271" r="35" fill="url(#lime)"/><path d="M586 271h28m-14-14v28" stroke="#193223" stroke-width="4" stroke-linecap="round"/>
+  <g font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#5B7063"><text x="188" y="344">Home</text><text x="810" y="344">Premi</text><text x="1012" y="344">Menu PRO</text></g>
+  <text x="390" y="344" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="800" fill="#438C21">Progressi</text><circle cx="390" cy="356" r="3.5" fill="#84CC16"/>
+
+  <!-- B: bold, almost app-like pictograms -->
+  <g filter="url(#shadow)"><rect x="80" y="423" width="1040" height="278" rx="30" fill="#FFFFFF"/></g>
+  <rect x="102" y="444" width="44" height="36" rx="11" fill="#E5F0E9"/>
+  <text x="124" y="469" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="21" font-weight="900" fill="#244C31">B</text>
+  <text x="160" y="467" font-family="system-ui,-apple-system,sans-serif" font-size="24" font-weight="800" fill="#173322">Solido</text>
+  <text x="102" y="498" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#6B7F72">Pittogrammi pieni e leggibili, con un indicatore attivo molto netto.</text>
+  <rect x="101" y="523" width="998" height="153" rx="24" fill="#FBFDFC" stroke="#E3EBE4"/>
+  <rect x="342" y="540" width="96" height="74" rx="25" fill="#E7F7D6"/>
+  <g transform="translate(188 578)"><use xlink:href="#solid-home"/></g>
+  <g transform="translate(390 578)"><use xlink:href="#solid-progress"/></g>
+  <g transform="translate(810 578)"><use xlink:href="#solid-rewards"/></g>
+  <g transform="translate(1012 578)"><use xlink:href="#solid-pro"/></g>
+  <circle cx="600" cy="572" r="35" fill="url(#lime)"/><path d="M586 572h28m-14-14v28" stroke="#193223" stroke-width="4" stroke-linecap="round"/>
+  <g font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#5B7063"><text x="188" y="645">Home</text><text x="810" y="645">Premi</text><text x="1012" y="645">Menu PRO</text></g>
+  <text x="390" y="645" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="900" fill="#245A25">Progressi</text><rect x="367" y="655" width="46" height="4" rx="2" fill="#70BF2A"/>
+
+  <!-- C: dark premium orbs -->
+  <g filter="url(#shadow)"><rect x="80" y="724" width="1040" height="278" rx="30" fill="#FFFFFF"/></g>
+  <rect x="102" y="745" width="44" height="36" rx="11" fill="#E5F2EA"/>
+  <text x="124" y="770" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="21" font-weight="900" fill="#245B35">C</text>
+  <text x="160" y="768" font-family="system-ui,-apple-system,sans-serif" font-size="24" font-weight="800" fill="#173322">Premium</text>
+  <text x="102" y="799" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#6B7F72">Bottoni circolari scuri, disegni sottili e un bagliore sul tab attivo.</text>
+  <rect x="101" y="824" width="998" height="153" rx="24" fill="#FBFDFC" stroke="#E3EBE4"/>
+  <circle cx="188" cy="877" r="36" fill="url(#dark)"/><g transform="translate(188 877)" color="#D9F1DF"><use xlink:href="#line-home"/></g>
+  <circle cx="390" cy="877" r="40" fill="url(#lime)" filter="url(#glow)"/><g transform="translate(390 877)" color="#173422"><use xlink:href="#line-progress"/></g>
+  <circle cx="810" cy="877" r="36" fill="url(#dark)"/><g transform="translate(810 877)" color="#FFD17A"><use xlink:href="#line-rewards"/></g>
+  <circle cx="1012" cy="877" r="36" fill="url(#dark)"/><g transform="translate(1012 877)" color="#E7D8FF"><use xlink:href="#line-pro"/></g>
+  <circle cx="600" cy="873" r="35" fill="url(#lime)"/><path d="M586 873h28m-14-14v28" stroke="#193223" stroke-width="4" stroke-linecap="round"/>
+  <g font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="700" text-anchor="middle" fill="#5B7063"><text x="188" y="946">Home</text><text x="810" y="946">Premi</text><text x="1012" y="946">Menu PRO</text></g>
+  <text x="390" y="946" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="17" font-weight="900" fill="#438C21">Progressi</text>
+
+  <text x="80" y="1045" font-family="system-ui,-apple-system,sans-serif" font-size="15" fill="#718778">Anteprime di stile · nessuna modifica alla barra dell’app</text>
+</svg>
