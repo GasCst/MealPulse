@@ -5,9 +5,9 @@
 [![React](https://img.shields.io/badge/React-19.1.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Database%20%26%20Auth-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
-[![PyTorch MPS](https://img.shields.io/badge/PyTorch-Metal%20(Apple%20Silicon)-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![MLX Metal](https://img.shields.io/badge/MLX-Metal%20(Apple%20Silicon)-222222)](https://github.com/ml-explore/mlx)
 
-**MealPulse AI** is a cutting-edge mobile nutrition and calorie tracking platform built with **React Native (Expo SDK 54, React Native New Architecture)** and powered by **Google Gemini 2.5/2.0 Flash Vision AI**, **OpenAI GPT-4o-mini**, and a custom **Apple Silicon Metal (MPS) Coqui XTTS-v2 Zero-Shot Voice Cloning Engine**.
+**MealPulse AI** is a cutting-edge mobile nutrition and calorie tracking platform built with **React Native (Expo SDK 54, React Native New Architecture)** and powered by **Google Gemini 2.5/2.0 Flash Vision AI**, **OpenAI GPT-4o-mini**, and a local **Apple Silicon Qwen3-TTS/MLX voice cloning engine with compatible XTTS-v2 speakers**.
 
 Snap a photo of any food plate or fruit, automatically count individual items (e.g., 5 walnuts, 3 eggs), estimate volumetric portion weights in grams, calculate precise macronutrients (calories, protein, carbs, fat), receive humorous voice roasts & coaching from customizable AI personalities, track intermittent fasting & daily hydration, synchronize real-time active calories & steps with **Apple Health** and **Google Health Connect**, and persist everything securely to **Supabase Cloud**.
 
@@ -22,7 +22,7 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 - **Macronutrient Breakdown**: Delivers instant calorie totals, protein, carbohydrate, and fat distributions.
 - **Playful Non-Food Detection**: Recognizes non-edible objects with humorous AI roasts and zero-calorie safe fallbacks.
 
-### 🎙️ AI Voice Coach & Zero-Shot Speech Synthesis (Coqui XTTS-v2)
+### 🎙️ AI Voice Coach & Voice Cloning (Qwen3-TTS/MLX and XTTS-v2)
 - **5 Iconic Personality Characters**:
   1. 🤌 **Zio Napoletano**: Warm, passionate, and protective defender of authentic Mediterranean cuisine.
   2. 👨‍🍳 **Chef Gordon**: Uncompromising, sharp, Michelin-star sarcastic disciplinarian.
@@ -40,15 +40,16 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
   - Global personal AI coach setting in the Pro menu personalizes all ambient audio across the app.
   - Meal roasts in **AI Photoscan** allow independent on-the-fly voice selection without overriding the user's global assistant.
 
-### ⚡ Native Apple Silicon Metal (MPS) & Multi-Tier Audio Cache Engine
-- **PyTorch Metal Performance Shaders (`mps`)**: High-performance Python 3.11 backend accelerated by Apple Silicon GPU and AMX matrix coprocessors.
+### ⚡ Apple Silicon Metal & Audio Cache
+- **MLX/Metal**: Qwen3-TTS 1.7B Base/4 bit clones the five reference voices. An isolated PyTorch/MPS worker preserves the 58 XTTS speakers.
+- **Neapolitan Text**: Dialect-aware prompts and an optional Gemini text adapter for installed clients preserve numeric facts. Speech synthesis stays on the Mac. See [setup and limitations](docs/LOCAL_TTS.md).
 - **Multi-Tier Audio Caching**:
-  - **In-Memory LRU Cache**: Ultra-fast **0 ms** instant audio return for repeated sentences and voice previews.
+  - **In-Memory LRU Cache**: Fast audio return without model inference for repeated sentences and voice previews.
   - **Persistent Bounded Disk Cache (`DiskAudioCache`)**: Persists synthesized WAV files across server restarts (`.tmp/tts-audio-cache`, bounded to 300 files / 256 MiB with 7-day TTL and SHA-256 content keying).
-- **Concurrency & Serialization**: Thread-safe model inference (`_inference_lock`) avoids XTTS internal state corruption while keeping FastAPI's HTTP event loop unblocked for health checks and cache hits.
+- **Concurrency & Serialization**: Thread-safe model inference (`_inference_lock`) protects mutable model state while keeping FastAPI's HTTP event loop unblocked for health checks and cache hits.
 - **Strict Voice Resolution**: Rejects invalid voice IDs with HTTP 422 instead of silent speaker substitution; clean fallback only when no voice is requested.
 - **Auditable Response Headers**: Includes `X-Voice-Id`, `X-Voice-Source`, `X-Voice-Reference`, `X-Voice-Reference-SHA256`, and `X-Audio-Cached` for full provenance.
-- **Dynamic Endpoint Resolution & Offline Fallback**: Client resolves backend TTS URL dynamically from Supabase `app_config` (`tts_api_url`) with seamless offline fallback to native speech (`expo-speech`).
+- **Dynamic Endpoint Resolution**: Mobile requests read Supabase `app_config.tts_api_url` before contacting the Mac, sharing concurrent lookups and using a 2.5-second lookup timeout. The saved URL is used only when Supabase is unavailable. A stale Mac address can trigger the phone's native `expo-speech` fallback, which does not preserve cloned voices.
 
 ### 📊 Advanced Analytics & Progress Tracking (`app/(tabs)/analytics.tsx`)
 - **Flexible Timeframes**: Switch between **Today**, **Week**, and **Month** views.
@@ -96,7 +97,7 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 | **Navigation** | [Expo Router v6](https://docs.expo.dev/router/introduction/) (File-based navigation) |
 | **Animations & UI** | [React Native Reanimated v4](https://docs.swmansion.com/react-native-reanimated/), [React Native SVG](https://github.com/software-mansion/react-native-svg), Expo Haptics |
 | **Vision AI** | [Google Gemini 2.5 Flash / 2.0 Flash](https://ai.google.dev/), [OpenAI GPT-4o-mini Vision](https://platform.openai.com/) |
-| **Speech AI (TTS)** | [Coqui XTTS-v2](https://github.com/coqui-ai/TTS), PyTorch (Metal/MPS on Apple Silicon), FastAPI, Uvicorn, SoundFile |
+| **Speech AI (TTS)** | Qwen3-TTS, MLX/Metal, compatible Coqui XTTS-v2/PyTorch speakers, FastAPI, Uvicorn, SoundFile |
 | **Backend & Cloud** | [Supabase](https://supabase.com/) (PostgreSQL, Realtime Auth, Storage, Row Level Security) |
 | **Health Sync** | [Google Health Connect](https://developer.android.com/health-and-fitness/guides/health-connect), Apple HealthKit |
 | **Monetization** | [RevenueCat SDK](https://www.revenuecat.com/) (`react-native-purchases`), [Google Mobile Ads](https://github.com/invertase/react-native-google-mobile-ads) |
@@ -122,7 +123,9 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 ├── context/                    # React Contexts (Auth, Subscription, Theme, Language)
 ├── services/                   # Business logic and external API integrations
 │   ├── aiVisionService.ts      # Gemini & OpenAI meal vision processing
-│   ├── voiceCoachService.ts    # XTTS client, playback management, and caching
+│   ├── voiceCoachService.ts    # TTS client, playback management, and caching
+│   ├── voiceTextStyle.ts       # Language/dialect prompts and complete speech cache keys
+│   ├── remoteConfigService.ts # Supabase TTS endpoint lookup and offline fallback
 │   ├── healthSyncService.ts    # Apple HealthKit & Google Health Connect sync
 │   ├── supabaseService.ts      # Cloud database operations and guest data migration
 │   └── revenueCatService.ts    # In-app purchase & entitlement verification
@@ -131,7 +134,10 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 │   ├── warm_tts_previews.py    # Pre-warms cache for voice selector previews
 │   └── benchmark_tts_threads.py# Multi-thread vs single-thread MPS benchmark
 ├── workflows/                  # Standard Operating Procedures (SOPs)
-├── main.py                     # High-performance FastAPI server with XTTS-v2 & Metal acceleration
+├── main.py                     # Compatible FastAPI voice server (MLX + XTTS)
+├── mlx_tts_engine.py           # Pinned Qwen3-TTS model and reference conditioning
+├── tts_dialect.py              # Optional Neapolitan text adaptation with numeric guards
+├── tts_xtts_bridge.py          # Isolated legacy XTTS worker interface
 ├── tts_audio_cache.py          # Persistent bounded disk cache for generated speech
 └── start_native_tts.sh         # Launch script for the Apple Silicon TTS server
 ```
@@ -141,7 +147,7 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
-- **Node.js** (v18 or v20+) & **npm**
+- **Node.js 20.19+** & **npm** (Expo SDK 54 minimum)
 - **Python 3.11** (for the native Apple Silicon TTS server)
 - **Java JDK 17** (for local Android release builds)
 - [Expo Go app](https://expo.dev/go) or Android Emulator / Physical Device
@@ -166,20 +172,48 @@ EXPO_PUBLIC_TTS_API_URL=http://<YOUR_LAN_IP>:8000
 ```
 
 ### 4. Running the Native Speech (TTS) Server
-To start the Coqui XTTS-v2 voice server on Apple Silicon (MPS):
+The Mac launcher now uses Qwen3-TTS/MLX for cloned characters and keeps XTTS-v2
+for the 58 standard speakers. See [local TTS setup, dialect and benchmarks](docs/LOCAL_TTS.md).
+To start the Apple Silicon voice server:
 ```bash
+python3.11 -m venv venv_mlx_tts
+venv_mlx_tts/bin/python -m pip install -r requirements-mlx.in
 chmod +x start_native_tts.sh
 ./start_native_tts.sh
 ```
-The server will initialize on `http://0.0.0.0:8000` with zero-copy RAM caching and bounded disk caching.
+Keep the existing `tts_env` environment for the 58 XTTS voices; MLX runs in its
+own environment. The server listens on all interfaces at port 8000 after loading
+and warming the models. Repeated audio is served from RAM or the bounded disk cache.
+
+#### Phone connectivity and system-voice fallback
+
+The phone reads the server address from the `tts_api_url` row in Supabase's
+`app_config` table. Keep that value aligned with the Mac's current reachable
+address, for example `http://<MAC_LAN_IP>:8000`; editing only `.env` does not update
+Supabase. The table is publicly readable and protected from client writes by RLS.
+Endpoint changes must be made by an authorized administrator or server publisher.
+No automatic Mac IP publisher is configured in this repository.
+
+For a LAN address, both devices need network access to the Mac and the Mac must
+remain awake. After updating the address, fully close and reopen older installed
+versions, then try a new message to avoid their cached address/audio. Changing
+the server engine or the Supabase URL does not require a new Google Play AAB.
+The improved client lookup, translations and interface changes require a new
+app build or a compatible update to reach an installed app.
+
+Verify the entire path, including a WAV from Zio Napoletano:
+
+```bash
+venv_mlx_tts/bin/python tools/test_remote_config.py
+```
 
 #### Pre-warming & Verifying TTS Voices:
 ```bash
 # Pre-warm selector preview clips into cache
-tts_env/bin/python tools/warm_tts_previews.py
+venv_mlx_tts/bin/python tools/warm_tts_previews.py
 
 # Verify all 63 neural voices against the running server
-tts_env/bin/python tools/verify_all_tts_voices.py --url http://localhost:8000
+venv_mlx_tts/bin/python tools/verify_all_tts_voices.py --url http://localhost:8000
 ```
 
 ### 5. Running the Mobile App
@@ -208,8 +242,21 @@ The output bundle will be located at:
 
 ## 🧪 Testing & Verification Scripts (WAT Architecture)
 
-MealPulse AI implements the **WAT (Workflows, Agents, Tools)** architecture:
-- **TTS Cache Test**: `tts_env/bin/python tools/test_tts_audio_cache.py`
+```bash
+npx tsc --noEmit
+npm run lint
+venv_mlx_tts/bin/python -m unittest discover -s tools -p 'test_tts*.py'
+node --test tools/test_remote_config.cjs
+```
+
+The Python suite covers routing, voice aliases, WAV format, cache invalidation,
+number pronunciation and dialect rewrite guards. The JavaScript tests cover
+changed Mac addresses, concurrent lookups and offline fallbacks. Live voice
+verification checks transport and voice provenance; perceived naturalness still
+requires listening.
+
+Additional verification tools:
+- **TTS Cache Test**: `venv_mlx_tts/bin/python tools/test_tts_audio_cache.py`
 - **TTS Thread Benchmark**: `tts_env/bin/python tools/benchmark_tts_threads.py`
 - **Supabase Persistence Verification**: `python3 tools/verify_supabase_persistence.py`
 - **Health Sync Verification**: `python3 tools/verify_health_sync.py`
