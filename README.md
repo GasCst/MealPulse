@@ -76,7 +76,7 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 ### 🔘 Button Sounds & Loading Feedback
 - **Action-aware sound feedback**: App-owned buttons use 16 original local cues. Quantity increases/decreases and selections use short, quiet ticks; saving portions and finishing use different melodic confirmations. Navigation, opening/closing panels, scans, voice playback, major actions, rewards and switch states each have their own cue.
 - **Consistent across languages**: Each button declares its action sound explicitly; changing the interface language does not change its assigned sound.
-- **Instant local playback**: WAVs are preloaded in a shared player pool. Rapid taps replace the previous UI sound instead of stacking chimes. Button sounds never stop the TTS player or change its audio mode. See the [sound palette](assets/sounds/README.md).
+- **Reliable local playback**: Android preloads the short WAVs into a native SoundPool; iOS, web and development builds use Expo players. Distinct rapid presses are retained, including presses made during loading. Only the same bubbled press event is deduplicated. Different action cues finish without stopping each other, and failed players are retried with a fallback. Button sounds never stop the TTS player or change its audio mode. See the [sound palette](assets/sounds/README.md).
 - **Optional sound**: Toggle **Button sounds / Suoni dei pulsanti** in Menu PRO. The preference is saved on the device.
 - **Voice preparation**: Briefing, hydration coach, daily recap, celebrations, voice previews and meal roasts show a spinner while preparing text, generating speech, downloading the WAV and starting the player. New labels follow the selected language.
 - **Scoped playback**: Each voice feature shows its own loading/playback state. Repeated generation taps are blocked; cancelled server requests cannot start stale audio or device-speech fallback.
@@ -122,7 +122,7 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 │   ├── onboarding.tsx          # Multi-step biometrics & macro goals onboarding flow
 │   └── _layout.tsx             # Root layout with providers & navigation shell
 ├── assets/                     # App icons, splash screens, illustrations, and audio
-│   ├── sounds/                 # Original bundled button tap sound
+│   ├── sounds/                 # 16 original bundled action sounds
 │   └── voices/                 # Reference WAV audio files for zero-shot voice cloning
 ├── components/                 # Reusable UI components
 │   ├── navbar/                 # QuickActionFab, AnimatedTabItem, custom bottom tab bar
@@ -251,7 +251,7 @@ cd android && ./gradlew bundleRelease
 The output bundle will be located at:
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-The action-sound release is **2.5.7**, Android version code **117**. Keep
+The reliable button-sound release is **2.5.8**, Android version code **118**. Keep
 `app.json` and `android/app/build.gradle` versions synchronized before the next build.
 
 ---
@@ -273,7 +273,9 @@ verification checks transport and voice provenance; perceived naturalness still
 requires listening.
 
 The UI feedback suite checks button coverage, action categories, disabled controls, mute persistence,
-distinct audio assets, rapid-tap handling and player cleanup, as well as
+distinct audio assets, rapid presses, presses during preload, event deduplication,
+serialized player commands, retry/fallback recovery, native Android resource mapping
+and cancellation during mute/release, as well as
 voice loading through WAV download/player setup, request cancellation and stale
 playback callbacks. Listen to the tap sound and test TTS on a physical phone using
 the Google Play internal testing track before promoting a release.
