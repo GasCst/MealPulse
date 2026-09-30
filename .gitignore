@@ -47,6 +47,7 @@ app-example
 # temporary ad logs
 android/*.txt
 *.txt
+!requirements.txt
 
 # local properties & keystores
 local.properties
@@ -56,3 +57,5 @@ local.properties
 ag-stop-probe.json
 tts_env/
 venv*/
+__pycache__/
+*.py[cod]

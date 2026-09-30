@@ -1,0 +1,42 @@
+{
+  "chef_gordon": {
+    "source": "chef_gordon.wav",
+    "source_sha256": "7910fd194b6e8375924c9b781302afc74546fd89b76156f0c8f01d945d28e49f",
+    "start_seconds": 0,
+    "end_seconds": 10.99,
+    "transcript": "Oh mio Dio! Oh mio Dio! Oh mio Dio! Che testa! Guardate che testa! Mi ha rovinato i capelli! Sembro uno dei Backstreet Boys!",
+    "transcript_origin": "whisper-large-v3-turbo (automatic; dialect spelling may need review)"
+  },
+  "diva": {
+    "source": "diva.wav",
+    "source_sha256": "f09656671619ec0c29861a8c39a66979df97b66fce78ef3fe06e101c15cc3dbb",
+    "start_seconds": 0,
+    "end_seconds": 11.99,
+    "transcript": "Ciao, Nio. So tante cose di te, non solo il tuo nome. Mi chiamo Trinity. Per adesso posso solo",
+    "transcript_origin": "whisper-large-v3-turbo (automatic; dialect spelling may need review)"
+  },
+  "napoletano": {
+    "source": "napoletano.wav",
+    "source_sha256": "2f41d9a726bbb048efd9396acc06d38ddd3e3a78540deea925bd1f8f1c1022d9",
+    "start_seconds": 0,
+    "end_seconds": 9.85,
+    "transcript": "Sai quante volte ce lo dico? Nonna paghi le tasse? Ah non le pago? Eh nonna ti stai guardando? Eh, ti stai guardando? Tu con la camera ci stai guardando?",
+    "transcript_origin": "whisper-large-v3-turbo (automatic; dialect spelling may need review)"
+  },
+  "roastmaster": {
+    "source": "roastmaster.wav",
+    "source_sha256": "2ac88486122ff23089a38ff3a7676f10117ebd823992cfdcf5b1075fda419293",
+    "start_seconds": 0,
+    "end_seconds": 18.1,
+    "transcript": "Forse la percezione che sono una persona così severa era un po' un ruolo, anche io ho detto in questo ruolo di giudicare li giudico come giudico i cuochi nel ristorante, allora più di severo era molto professionale, poi è andato anche oltre.",
+    "transcript_origin": "whisper-large-v3-turbo (automatic; dialect spelling may need review)"
+  },
+  "sara": {
+    "source": "sara.wav",
+    "source_sha256": "9a63d2d0a5710221fd739c167eecdbdd48565d8d7fd2363a58233842672b9ae3",
+    "start_seconds": 0,
+    "end_seconds": 12.57,
+    "transcript": "Un giorno, quando ero ancora piccola, ad un ricevimento feci qualcosa che fu considerato un terribile errore. La colpa, in realtà, era di mia sorella, incaricata di tenermi d'occhio e ricordarmi le buone maniere.",
+    "transcript_origin": "whisper-large-v3-turbo (automatic; dialect spelling may need review)"
+  }
+}
