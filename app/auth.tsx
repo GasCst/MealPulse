@@ -88,7 +88,7 @@ export default function AuthScreen() {
       >
         <TouchableOpacity
           style={[styles.backBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
-          onPress={handleBack}
+          sound="navigate" onPress={handleBack}
           activeOpacity={0.8}
         >
           <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
@@ -112,7 +112,7 @@ export default function AuthScreen() {
         <Animated.View entering={FadeInUp.delay(100).duration(400)} style={styles.socialCard}>
           <TouchableOpacity
             style={[styles.googleBtn, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
-            onPress={handleGoogleSignIn}
+            sound="primary" onPress={handleGoogleSignIn}
             disabled={loading}
             activeOpacity={0.85}
           >
@@ -160,7 +160,7 @@ export default function AuthScreen() {
 
           <TouchableOpacity
             style={[styles.submitBtn, { backgroundColor: colors.lime }]}
-            onPress={handleEmailAuth}
+            sound="primary" onPress={handleEmailAuth}
             disabled={loading}
             activeOpacity={0.85}
           >
@@ -180,7 +180,7 @@ export default function AuthScreen() {
             {isSignUp ? 'Already have an account?' : "Don't have an account yet?"}
           </Text>
           <TouchableOpacity
-            onPress={() => {
+            sound="select" onPress={() => {
               triggerHaptic('light');
               setIsSignUp(!isSignUp);
             }}

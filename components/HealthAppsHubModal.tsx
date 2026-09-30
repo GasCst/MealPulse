@@ -171,7 +171,7 @@ export const HealthAppsHubModal: React.FC<HealthAppsHubModalProps> = ({
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
         {/* Header */}
         <View style={[styles.headerRow, { borderBottomColor: colors.cardBorder }]}>
-          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.inputBg }]}>
+          <TouchableOpacity sound="close" onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.inputBg }]}>
             <Ionicons name="close" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center' }}>
@@ -244,7 +244,7 @@ export const HealthAppsHubModal: React.FC<HealthAppsHubModalProps> = ({
 
                   <TouchableOpacity
                     style={[styles.openAppBtn, { backgroundColor: isDarkMode ? '#1E3A2B' : '#DCFCE7' }]}
-                    onPress={() => handleLaunchApp(p)}
+                    sound="navigate" onPress={() => handleLaunchApp(p)}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.openAppBtnText}>Apri</Text>
@@ -257,7 +257,7 @@ export const HealthAppsHubModal: React.FC<HealthAppsHubModalProps> = ({
                 {/* Collapsible Guide Toggle */}
                 <TouchableOpacity
                   style={[styles.guideToggleRow, { borderTopColor: colors.cardBorder }]}
-                  onPress={() => setSelectedGuideId(isGuideOpen ? null : p.id)}
+                  sound={isGuideOpen ? 'close' : 'open'} onPress={() => setSelectedGuideId(isGuideOpen ? null : p.id)}
                   activeOpacity={0.7}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -289,7 +289,7 @@ export const HealthAppsHubModal: React.FC<HealthAppsHubModalProps> = ({
         <View style={[styles.footer, { backgroundColor: colors.cardBg, borderTopColor: colors.cardBorder }]}>
           <TouchableOpacity
             style={[styles.syncActionBtn, { backgroundColor: '#BEF264' }]}
-            onPress={handleSyncNow}
+            sound="primary" onPress={handleSyncNow}
             disabled={healthSyncStatus === 'syncing'}
             accessibilityState={{ busy: healthSyncStatus === 'syncing', disabled: healthSyncStatus === 'syncing' }}
             activeOpacity={0.8}

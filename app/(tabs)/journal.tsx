@@ -143,7 +143,7 @@ export default function JournalScreen() {
                       borderWidth: 1.5,
                     },
                   ]}
-                  onPress={() => {
+                  sound="select" onPress={() => {
                     triggerHaptic('light');
                     setSentiment(s);
                   }}
@@ -177,7 +177,7 @@ export default function JournalScreen() {
           />
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: colors.lime }]}
-            onPress={handleSaveEntry}
+            sound="confirm" onPress={handleSaveEntry}
             disabled={loading}
             activeOpacity={0.85}
           >
@@ -203,7 +203,7 @@ export default function JournalScreen() {
                   borderColor: 'rgba(245, 158, 11, 0.3)',
                 },
               ]}
-              onPress={() => {
+              sound="open" onPress={() => {
                 triggerHaptic('medium');
                 openPaywall('journal_analytics');
               }}

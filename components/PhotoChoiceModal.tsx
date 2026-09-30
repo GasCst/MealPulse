@@ -28,7 +28,7 @@ export const PhotoChoiceModal: React.FC<PhotoChoiceModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback sound="close" onPress={onClose}>
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback>
             <View style={[styles.card, { backgroundColor: isDarkMode ? '#13201A' : '#FFFFFF' }]}>
@@ -50,7 +50,7 @@ export const PhotoChoiceModal: React.FC<PhotoChoiceModalProps> = ({
                     styles.optionBtn,
                     { backgroundColor: isDarkMode ? '#1D2E24' : '#F4FAF4', borderColor: '#C8E6C9' },
                   ]}
-                  onPress={() => {
+                  sound="scan" onPress={() => {
                     onClose();
                     onTakePhoto();
                   }}
@@ -72,7 +72,7 @@ export const PhotoChoiceModal: React.FC<PhotoChoiceModalProps> = ({
                     styles.optionBtn,
                     { backgroundColor: isDarkMode ? '#1D2E24' : '#F4FAF4', borderColor: '#C8E6C9' },
                   ]}
-                  onPress={() => {
+                  sound="open" onPress={() => {
                     onClose();
                     onChooseGallery();
                   }}
@@ -92,7 +92,7 @@ export const PhotoChoiceModal: React.FC<PhotoChoiceModalProps> = ({
               {/* Cancel Button */}
               <TouchableOpacity
                 style={[styles.cancelBtn, { backgroundColor: isDarkMode ? '#1F2A23' : '#F1F5F9' }]}
-                onPress={onClose}
+                sound="close" onPress={onClose}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>{t('cancel')}</Text>

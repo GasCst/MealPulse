@@ -913,7 +913,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                 {DEFAULT_MODEL_VOICES.length} voci neurali native con timbro e personalità uniche
               </Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.closeBtn} sound="close" onPress={onClose} activeOpacity={0.7}>
               <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -939,7 +939,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
               clearButtonMode="while-editing"
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity sound="close" onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
@@ -954,7 +954,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                   ? { backgroundColor: colors.coral }
                   : { backgroundColor: isDarkMode ? '#1B2E24' : '#F0F5F2' },
               ]}
-              onPress={() => setSelectedGenderFilter('all')}
+              sound="select" onPress={() => setSelectedGenderFilter('all')}
               activeOpacity={0.8}
             >
               <Text
@@ -974,7 +974,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                   ? { backgroundColor: colors.coral }
                   : { backgroundColor: isDarkMode ? '#1B2E24' : '#F0F5F2' },
               ]}
-              onPress={() => setSelectedGenderFilter('character')}
+              sound="select" onPress={() => setSelectedGenderFilter('character')}
               activeOpacity={0.8}
             >
               <Text
@@ -994,7 +994,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                   ? { backgroundColor: colors.coral }
                   : { backgroundColor: isDarkMode ? '#1B2E24' : '#F0F5F2' },
               ]}
-              onPress={() => setSelectedGenderFilter('female')}
+              sound="select" onPress={() => setSelectedGenderFilter('female')}
               activeOpacity={0.8}
             >
               <Text
@@ -1014,7 +1014,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                   ? { backgroundColor: colors.coral }
                   : { backgroundColor: isDarkMode ? '#1B2E24' : '#F0F5F2' },
               ]}
-              onPress={() => setSelectedGenderFilter('male')}
+              sound="select" onPress={() => setSelectedGenderFilter('male')}
               activeOpacity={0.8}
             >
               <Text
@@ -1054,7 +1054,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                     isSelected && styles.voiceCardSelected,
                     isLocked && styles.voiceCardLocked,
                   ]}
-                  onPress={() => handleSelect(item)}
+                  sound="voice" onPress={() => handleSelect(item)}
                   activeOpacity={0.75}
                 >
                   <View style={styles.cardTopRow}>

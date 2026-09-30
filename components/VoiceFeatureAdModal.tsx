@@ -244,7 +244,7 @@ export const VoiceFeatureAdModal: React.FC<VoiceFeatureAdModalProps> = ({
           {/* Close Button */}
           <TouchableOpacity
             style={styles.closeBtn}
-            onPress={onClose}
+            sound="close" onPress={onClose}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Ionicons name="close" size={22} color={colors.textSecondary} />
@@ -274,7 +274,7 @@ export const VoiceFeatureAdModal: React.FC<VoiceFeatureAdModalProps> = ({
           {/* Action 1: Watch Ad to Unlock */}
           <TouchableOpacity
             style={[styles.watchAdBtn, { backgroundColor: colors.lime }]}
-            onPress={handleWatchAd}
+            sound="primary" onPress={handleWatchAd}
             disabled={isLoadingAd}
             activeOpacity={0.85}
           >
@@ -300,7 +300,7 @@ export const VoiceFeatureAdModal: React.FC<VoiceFeatureAdModalProps> = ({
                   borderColor: isDarkMode ? '#334155' : '#CBD5E1',
                 },
               ]}
-              onPress={() => {
+              sound="open" onPress={() => {
                 onClose();
                 onGoPro();
               }}

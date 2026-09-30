@@ -227,7 +227,7 @@ export default function MonetizationScreen() {
         accessibilityRole="switch"
         accessibilityState={{ checked: isOn }}
         activeOpacity={0.8}
-        onPress={onToggle}
+        sound={isOn ? 'toggle-off' : 'toggle-on'} onPress={onToggle}
         style={[styles.toggle, { backgroundColor: isOn ? theme.textPrimary : theme.toggleOff }]}
       >
         <View style={[styles.toggleKnob, isOn ? { right: 3, backgroundColor: theme.lime } : { left: 3, backgroundColor: '#FFFFFF' }]} />
@@ -364,7 +364,7 @@ export default function MonetizationScreen() {
             {/* Interactive CTA to Spin & Claim */}
             <TouchableOpacity
               style={[styles.jackpotCtaBtn, { backgroundColor: theme.lime }]}
-              onPress={() => setShowSpinWheel(true)}
+              sound="reward" onPress={() => setShowSpinWheel(true)}
               activeOpacity={0.85}
             >
               <Text style={[styles.jackpotCtaText, { fontFamily: fontFamilyDisplay }]}>
@@ -407,7 +407,7 @@ export default function MonetizationScreen() {
           </View>
           
           {!isPro && (
-            <TouchableOpacity style={[styles.cta, { backgroundColor: theme.lime }]} onPress={() => openPaywall('settings_tab')} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.cta, { backgroundColor: theme.lime }]} sound="open" onPress={() => openPaywall('settings_tab')} activeOpacity={0.85}>
               <Text style={[styles.ctaText, { fontFamily: fontFamilyDisplay }]}>{t('activate_vision_pro')}</Text>
               <Ionicons name="arrow-forward" size={16} color="#14181B" />
             </TouchableOpacity>
@@ -455,7 +455,7 @@ export default function MonetizationScreen() {
                   styles.cta,
                   { backgroundColor: theme.lime, flex: 1, marginTop: 0, paddingVertical: 10 },
                 ]}
-                onPress={() => setShowVoiceModal(true)}
+                sound="open" onPress={() => setShowVoiceModal(true)}
                 disabled={isLoadingCoachVoice}
                 activeOpacity={0.85}
               >
@@ -475,7 +475,7 @@ export default function MonetizationScreen() {
                     paddingHorizontal: 14,
                   },
                 ]}
-                onPress={handlePlaySampleCoachVoice}
+                sound={isPlayingCoachVoice ? 'close' : 'voice'} onPress={handlePlaySampleCoachVoice}
                 disabled={isLoadingCoachVoice}
                 accessibilityLabel={t(isLoadingCoachVoice ? 'voice_loading' : isPlayingCoachVoice ? 'voice_stop' : 'voice_try')}
                 accessibilityState={{ busy: isLoadingCoachVoice, disabled: isLoadingCoachVoice }}
@@ -546,7 +546,7 @@ export default function MonetizationScreen() {
                 <TouchableOpacity 
                   key={opt}
                   style={[styles.segOpt, scanAccuracy === opt && { backgroundColor: theme.textPrimary }]}
-                  onPress={() => setScanAccuracy(opt as 'Fast' | 'Balanced' | 'Precise')}
+                  sound="select" onPress={() => setScanAccuracy(opt as 'Fast' | 'Balanced' | 'Precise')}
                   activeOpacity={0.8}
                 >
                   <Text style={[
@@ -643,7 +643,7 @@ export default function MonetizationScreen() {
                 </View>
                 <TouchableOpacity
                   style={[styles.syncNowBtn, { backgroundColor: isDarkMode ? '#1F382B' : '#E8F7D0' }]}
-                  onPress={() => triggerHealthSync()}
+                  sound="primary" onPress={() => triggerHealthSync()}
                   disabled={healthSyncStatus === 'syncing'}
                   accessibilityState={{ busy: healthSyncStatus === 'syncing', disabled: healthSyncStatus === 'syncing' }}
                   activeOpacity={0.75}
@@ -724,7 +724,7 @@ export default function MonetizationScreen() {
           {user && (
             <TouchableOpacity 
               style={[styles.rowCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}
-              onPress={() => AuthService.signOut()}
+              sound="close" onPress={() => AuthService.signOut()}
             >
               <View style={styles.rowTop}>
                 <View style={[styles.rowIco, { backgroundColor: '#FEE2E2' }]}>

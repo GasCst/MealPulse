@@ -762,7 +762,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#0B1410' : '#F2F9F2' }]}>
         {/* Top Close Button */}
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.closeBtn} sound="close" onPress={handleClose} activeOpacity={0.7}>
             <Ionicons name="close" size={24} color={colors.coral} />
           </TouchableOpacity>
         </View>
@@ -851,7 +851,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                             : [styles.charPillInactive, { backgroundColor: isDarkMode ? '#182C22' : '#EFF5F0' }],
                           isLocked && styles.charPillLocked,
                         ]}
-                        onPress={() => handleSelectCharacter(char)}
+                        sound={isLocked ? 'open' : 'voice'} onPress={() => handleSelectCharacter(char)}
                         disabled={isSelected && isLoadingAudio}
                         accessibilityState={{ busy: isSelected && isLoadingAudio, disabled: isSelected && isLoadingAudio }}
                         activeOpacity={0.8}
@@ -888,7 +888,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                             : [styles.charPillInactive, { backgroundColor: isDarkMode ? '#182C22' : '#EFF5F0' }],
                           isCustomLocked && styles.charPillLocked,
                         ]}
-                        onPress={() => handleSelectCustomVoice(customSelectedVoice)}
+                        sound={isCustomLocked ? 'open' : 'voice'} onPress={() => handleSelectCustomVoice(customSelectedVoice)}
                         disabled={isCustomSelected && isLoadingAudio}
                         accessibilityState={{ busy: isCustomSelected && isLoadingAudio, disabled: isCustomSelected && isLoadingAudio }}
                         activeOpacity={0.8}
@@ -921,7 +921,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                         borderColor: isDarkMode ? '#2D4B39' : '#DDE8E0',
                       },
                     ]}
-                    onPress={() => {
+                    sound="open" onPress={() => {
                       try {
                         if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       } catch {}
@@ -950,7 +950,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                 <View style={[styles.roastPlayerBar, { backgroundColor: isDarkMode ? '#0E1913' : '#F4FAF5' }]}>
                   <TouchableOpacity
                     style={[styles.roastPlayBtn, { backgroundColor: colors.coral }]}
-                    onPress={handleTogglePlayPause}
+                    sound={isPlaying ? 'close' : 'voice'} onPress={handleTogglePlayPause}
                     disabled={isLoadingAudio}
                     accessibilityLabel={t(isLoadingAudio ? 'voice_loading' : isPlaying ? 'voice_stop' : 'voice_listen')}
                     accessibilityState={{ busy: isLoadingAudio, disabled: isLoadingAudio }}
@@ -1019,7 +1019,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                 {audioError ? (
                   <TouchableOpacity
                     style={styles.roastErrorBox}
-                    onPress={() => fetchAndPlayAudio(voice, true)}
+                    sound="voice" onPress={() => fetchAndPlayAudio(voice, true)}
                     disabled={isLoadingAudio}
                     accessibilityState={{ busy: isLoadingAudio, disabled: isLoadingAudio }}
                     activeOpacity={0.8}
@@ -1042,7 +1042,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
               <View style={styles.stepperContainer}>
                 <TouchableOpacity
                   style={styles.stepperBtn}
-                  onPress={() => setServingMultiplier(Math.max(0.5, +(servingMultiplier - 0.5).toFixed(1)))}
+                  sound="decrement" onPress={() => setServingMultiplier(Math.max(0.5, +(servingMultiplier - 0.5).toFixed(1)))}
                 >
                   <Ionicons name="remove" size={16} color={colors.textPrimary} />
                 </TouchableOpacity>
@@ -1051,7 +1051,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
                 </Text>
                 <TouchableOpacity
                   style={styles.stepperBtn}
-                  onPress={() => setServingMultiplier(+(servingMultiplier + 0.5).toFixed(1))}
+                  sound="increment" onPress={() => setServingMultiplier(+(servingMultiplier + 0.5).toFixed(1))}
                 >
                   <Ionicons name="add" size={16} color={colors.textPrimary} />
                 </TouchableOpacity>
@@ -1097,7 +1097,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
         <View style={styles.bottomBarContainer}>
           <TouchableOpacity
             style={[styles.confirmBtn, { backgroundColor: colors.coral }]}
-            onPress={handleConfirmWithAudioStop}
+            sound="confirm" onPress={handleConfirmWithAudioStop}
             activeOpacity={0.85}
           >
             <Text style={styles.confirmBtnText}>{t('confirm')}</Text>

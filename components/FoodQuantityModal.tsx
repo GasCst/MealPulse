@@ -171,7 +171,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.backdrop}
       >
-        <TouchableOpacity style={styles.dismissOverlay} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={styles.dismissOverlay} activeOpacity={1} sound="close" onPress={onClose} />
 
         <View style={[styles.sheetContainer, { backgroundColor: isDarkMode ? '#13201A' : '#FFFFFF' }]}>
           {/* Top Handle Bar */}
@@ -189,7 +189,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                   : 'Macros automatically recalculate in real-time'}
               </Text>
             </View>
-            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: isDarkMode ? '#22382D' : '#F1F5F9' }]} onPress={onClose}>
+            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: isDarkMode ? '#22382D' : '#F1F5F9' }]} sound="close" onPress={onClose}>
               <Ionicons name="close" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
@@ -221,7 +221,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
             <View style={[styles.unitSelectorContainer, { backgroundColor: isDarkMode ? '#0F1A15' : '#EEF2F6' }]}>
               <TouchableOpacity
                 style={[styles.unitTab, activeUnit === 'g' && styles.unitTabActive]}
-                onPress={() => handleUnitChange('g')}
+                sound="select" onPress={() => handleUnitChange('g')}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.unitTabText, activeUnit === 'g' && styles.unitTabTextActive]}>
@@ -231,7 +231,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
 
               <TouchableOpacity
                 style={[styles.unitTab, activeUnit === 'oz' && styles.unitTabActive]}
-                onPress={() => handleUnitChange('oz')}
+                sound="select" onPress={() => handleUnitChange('oz')}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.unitTabText, activeUnit === 'oz' && styles.unitTabTextActive]}>
@@ -241,7 +241,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
 
               <TouchableOpacity
                 style={[styles.unitTab, activeUnit === 'serving' && styles.unitTabActive]}
-                onPress={() => handleUnitChange('serving')}
+                sound="select" onPress={() => handleUnitChange('serving')}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.unitTabText, activeUnit === 'serving' && styles.unitTabTextActive]}>
@@ -254,7 +254,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
             <View style={styles.inputSection}>
               <TouchableOpacity
                 style={[styles.stepperBtn, { backgroundColor: isDarkMode ? '#22382D' : '#F1F5F9' }]}
-                onPress={() => handleStep(-1)}
+                sound="decrement" onPress={() => handleStep(-1)}
                 activeOpacity={0.7}
               >
                 <Ionicons name="remove" size={24} color={colors.coral} />
@@ -276,7 +276,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
 
               <TouchableOpacity
                 style={[styles.stepperBtn, { backgroundColor: isDarkMode ? '#22382D' : '#F1F5F9' }]}
-                onPress={() => handleStep(1)}
+                sound="increment" onPress={() => handleStep(1)}
                 activeOpacity={0.7}
               >
                 <Ionicons name="add" size={24} color={colors.coral} />
@@ -299,7 +299,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                           { backgroundColor: isDarkMode ? '#1E3329' : '#F1F5F9' },
                           isSelected && { backgroundColor: colors.coral, borderColor: colors.coral },
                         ]}
-                        onPress={() => handlePresetSelect(p.grams)}
+                        sound="select" onPress={() => handlePresetSelect(p.grams)}
                         activeOpacity={0.8}
                       >
                         <Text style={[styles.presetChipText, { color: isSelected ? '#FFFFFF' : colors.textPrimary }]}>
@@ -318,7 +318,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                           { backgroundColor: isDarkMode ? '#1E3329' : '#F1F5F9' },
                           isSelected && { backgroundColor: colors.coral, borderColor: colors.coral },
                         ]}
-                        onPress={() => handlePresetSelect(g)}
+                        sound="select" onPress={() => handlePresetSelect(g)}
                         activeOpacity={0.8}
                       >
                         <Text style={[styles.presetChipText, { color: isSelected ? '#FFFFFF' : colors.textPrimary }]}>
@@ -374,7 +374,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
             <View style={styles.actionsRow}>
               <TouchableOpacity
                 style={[styles.confirmBtn, { backgroundColor: colors.coral }]}
-                onPress={handleConfirm}
+                sound="confirm" onPress={handleConfirm}
                 activeOpacity={0.85}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />

@@ -143,7 +143,7 @@ export default function ExploreScreen() {
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <TouchableOpacity sound="close" onPress={() => setSearchQuery('')}>
               <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
@@ -170,7 +170,7 @@ export default function ExploreScreen() {
                     borderWidth: 1.5,
                   },
                 ]}
-                onPress={() => {
+                sound="select" onPress={() => {
                   triggerHaptic('light');
                   setSelectedTag(tag);
                 }}
@@ -202,7 +202,7 @@ export default function ExploreScreen() {
                   styles.recipeCard,
                   { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 },
                 ]}
-                onPress={() => {
+                sound="open" onPress={() => {
                   triggerHaptic('medium');
                   if (item.isPro && !isPro) {
                     openPaywall('explore_recipe');

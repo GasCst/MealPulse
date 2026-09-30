@@ -9,7 +9,7 @@ export function HapticTab(props: BottomTabBarButtonProps) {
       {...props}
       onPress={(event) => {
         if (props.disabled) return;
-        buttonSoundService.playTap();
+        buttonSoundService.play('navigate');
         props.onPress?.(event);
       }}
       onPressIn={(ev) => {

@@ -63,7 +63,7 @@ export const AnimatedTabItem: React.FC<AnimatedTabItemProps> = ({
   return (
     <Pressable
       style={styles.tabButton}
-      onPress={() => {
+      sound="navigate" onPress={() => {
         triggerHaptic();
         onPress();
       }}

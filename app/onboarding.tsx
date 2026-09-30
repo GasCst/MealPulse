@@ -308,7 +308,7 @@ export default function OnboardingScreen() {
 
           <TouchableOpacity
             style={[styles.startQuizBtn, { backgroundColor: colors.lime }]}
-            onPress={() => {
+            sound="primary" onPress={() => {
               triggerHaptic('medium');
               setStepMode('quiz');
             }}
@@ -397,7 +397,7 @@ export default function OnboardingScreen() {
       {/* Header progress bar */}
       <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
         <TouchableOpacity
-          onPress={() => {
+          sound="navigate" onPress={() => {
             triggerHaptic('light');
             if (currentStepIndex > 0) setCurrentStepIndex(currentStepIndex - 1);
             else setStepMode('greeting');
@@ -450,7 +450,7 @@ export default function OnboardingScreen() {
                       { backgroundColor: colors.inputBg, borderColor: isSelected ? colors.lime : colors.cardBorder },
                       isSelected && { borderWidth: 2, backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1' },
                     ]}
-                    onPress={() => {
+                    sound="select" onPress={() => {
                       triggerHaptic('light');
                       setLanguage(lang.code);
                     }}
@@ -491,7 +491,7 @@ export default function OnboardingScreen() {
                   { backgroundColor: colors.inputBg, borderColor: gender === 'male' ? colors.lime : colors.cardBorder },
                   gender === 'male' && { borderWidth: 2, backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1' },
                 ]}
-                onPress={() => {
+                sound="select" onPress={() => {
                   triggerHaptic('light');
                   setGender('male');
                 }}
@@ -507,7 +507,7 @@ export default function OnboardingScreen() {
                   { backgroundColor: colors.inputBg, borderColor: gender === 'female' ? colors.lime : colors.cardBorder },
                   gender === 'female' && { borderWidth: 2, backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1' },
                 ]}
-                onPress={() => {
+                sound="select" onPress={() => {
                   triggerHaptic('light');
                   setGender('female');
                 }}
@@ -551,7 +551,7 @@ export default function OnboardingScreen() {
                     backgroundColor: preferredUnit === 'metric' ? (isDarkMode ? '#1E281C' : '#F4FBF1') : colors.inputBg,
                   },
                 ]}
-                onPress={() => {
+                sound="select" onPress={() => {
                   triggerHaptic('light');
                   if (preferredUnit !== 'metric') {
                     setPreferredUnit('metric');
@@ -573,7 +573,7 @@ export default function OnboardingScreen() {
                     backgroundColor: preferredUnit === 'imperial' ? (isDarkMode ? '#1E281C' : '#F4FBF1') : colors.inputBg,
                   },
                 ]}
-                onPress={() => {
+                sound="select" onPress={() => {
                   triggerHaptic('light');
                   if (preferredUnit !== 'imperial') {
                     setPreferredUnit('imperial');
@@ -651,7 +651,7 @@ export default function OnboardingScreen() {
                     { backgroundColor: colors.inputBg, borderColor: isSelected ? colors.lime : colors.cardBorder },
                     isSelected && { borderWidth: 2, backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1' },
                   ]}
-                  onPress={() => {
+                  sound="select" onPress={() => {
                     triggerHaptic('light');
                     setPrimaryGoal(item.label);
                   }}
@@ -693,7 +693,7 @@ export default function OnboardingScreen() {
                     { backgroundColor: colors.inputBg, borderColor: isSelected ? colors.lime : colors.cardBorder },
                     isSelected && { borderWidth: 2, backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1' },
                   ]}
-                  onPress={() => {
+                  sound="select" onPress={() => {
                     triggerHaptic('light');
                     setActivityLevel(item.id as any);
                   }}
@@ -739,7 +739,7 @@ export default function OnboardingScreen() {
                       { backgroundColor: colors.inputBg, borderColor: isSelected ? colors.lime : colors.cardBorder },
                       isSelected && { borderWidth: 1.5, backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1' },
                     ]}
-                    onPress={() => toggleAllergy(item)}
+                    sound={isSelected ? 'toggle-off' : 'toggle-on'} onPress={() => toggleAllergy(item)}
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.chipText, { color: colors.textPrimary }, isSelected && { color: colors.lime, fontWeight: '800' }]}>
@@ -777,7 +777,7 @@ export default function OnboardingScreen() {
                     { backgroundColor: colors.inputBg, borderColor: isSelected ? colors.lime : colors.cardBorder },
                     isSelected && { borderWidth: 2, backgroundColor: isDarkMode ? '#1E281C' : '#F4FBF1' },
                   ]}
-                  onPress={() => {
+                  sound="select" onPress={() => {
                     triggerHaptic('light');
                     setDietPreference(item.label);
                   }}
@@ -801,7 +801,7 @@ export default function OnboardingScreen() {
 
       {/* Footer next button */}
       <View style={[styles.footer, { backgroundColor: colors.cardBg, borderTopColor: colors.cardBorder }]}>
-        <TouchableOpacity style={[styles.nextBtn, { backgroundColor: colors.lime }]} onPress={handleNextStep} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.nextBtn, { backgroundColor: colors.lime }]} sound={currentStepIndex === 6 ? 'primary' : 'navigate'} onPress={handleNextStep} activeOpacity={0.85}>
           <Text style={styles.nextBtnText}>
             {currentStepIndex === 6 ? t('calculate_my_plan') : t('next')}
           </Text>

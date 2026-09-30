@@ -55,7 +55,7 @@ export const RoastUnlockModal: React.FC<RoastUnlockModalProps> = ({
       <View style={styles.overlay}>
         <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#112217' : '#FFFFFF' }]}>
           {/* Close button */}
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.closeBtn} sound="close" onPress={onClose} activeOpacity={0.7}>
             <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
 
@@ -83,7 +83,7 @@ export const RoastUnlockModal: React.FC<RoastUnlockModalProps> = ({
             {/* Opzione 1: Passa a PRO */}
             <TouchableOpacity
               style={[styles.proButton, { backgroundColor: colors.coral }]}
-              onPress={() => {
+              sound="open" onPress={() => {
                 onClose();
                 onGoPro();
               }}
@@ -105,7 +105,7 @@ export const RoastUnlockModal: React.FC<RoastUnlockModalProps> = ({
                   borderColor: isDarkMode ? '#2D4B39' : '#E0ECE3',
                 },
               ]}
-              onPress={handleWatchAd}
+              sound="primary" onPress={handleWatchAd}
               disabled={isLoadingAd}
               activeOpacity={0.8}
             >

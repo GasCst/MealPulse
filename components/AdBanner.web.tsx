@@ -24,7 +24,7 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
           </View>
           <TouchableOpacity
             style={styles.removeAdsBtn}
-            onPress={() => openPaywall('ad_banner')}
+            sound="open" onPress={() => openPaywall('ad_banner')}
             activeOpacity={0.8}
           >
             <Ionicons name="sparkles" size={14} color={colors.lime} />
@@ -42,7 +42,7 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
           </View>
           <TouchableOpacity
             style={[styles.ctaBtn, { backgroundColor: colors.lime }]}
-            onPress={() => openPaywall('ad_banner_cta')}
+            sound="open" onPress={() => openPaywall('ad_banner_cta')}
             activeOpacity={0.85}
           >
             <Text style={[styles.ctaBtnText, { color: '#0B1410' }]}>Upgrade</Text>

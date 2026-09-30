@@ -65,11 +65,11 @@ export const NotificationPromptModal: React.FC = () => {
 
           {/* Action Buttons */}
           <View style={styles.btnRow}>
-            <TouchableOpacity style={styles.laterBtn} onPress={handleLater} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.laterBtn} sound="close" onPress={handleLater} activeOpacity={0.8}>
               <Text style={styles.laterBtnText}>Più tardi</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.activateBtn} onPress={handleActivate} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.activateBtn} sound="confirm" onPress={handleActivate} activeOpacity={0.85}>
               <Text style={styles.activateBtnText}>Attiva</Text>
             </TouchableOpacity>
           </View>

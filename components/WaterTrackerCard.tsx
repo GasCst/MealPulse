@@ -132,7 +132,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
                 borderColor: isDarkMode ? '#2E491A' : '#D9F99D',
               },
             ]}
-            onPress={() => handlePlayCoachWater()}
+            sound={isCoachPlaying ? 'close' : 'voice'} onPress={() => handlePlayCoachWater()}
             disabled={isCoachLoading}
             accessibilityLabel={t(isCoachLoading ? 'voice_loading' : isCoachPlaying ? 'voice_stop' : 'voice_listen')}
             accessibilityState={{ busy: isCoachLoading, disabled: isCoachLoading }}
@@ -175,7 +175,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
             },
             currentIntake === 0 && (isDarkMode ? styles.disabledBtnDark : styles.disabledBtn),
           ]}
-          onPress={() => handleAdd(-250)}
+          sound="decrement" onPress={() => handleAdd(-250)}
           disabled={currentIntake === 0}
           activeOpacity={0.8}
         >
@@ -191,7 +191,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
               borderColor: isDarkMode ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD',
             },
           ]}
-          onPress={() => handleAdd(250)}
+          sound="increment" onPress={() => handleAdd(250)}
           activeOpacity={0.8}
         >
           <Ionicons name="add" size={16} color={colors.sky} />
@@ -206,7 +206,7 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({ selectedDate
               borderColor: isDarkMode ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD',
             },
           ]}
-          onPress={() => handleAdd(500)}
+          sound="increment" onPress={() => handleAdd(500)}
           activeOpacity={0.8}
         >
           <Ionicons name="add" size={16} color={colors.sky} />

@@ -63,7 +63,7 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
             <View style={styles.badge}>
               <Text style={styles.badgeText}>SPONSORED AD REWARD</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity sound="close" onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -108,7 +108,7 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
             {canClaim ? (
               <TouchableOpacity
                 style={[styles.claimBtn, { backgroundColor: colors.lime }]}
-                onPress={handleClaimReward}
+                sound="scan" onPress={handleClaimReward}
                 activeOpacity={0.85}
               >
                 <Text style={styles.claimBtnText}>
@@ -130,7 +130,7 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
             {/* Pro upsell */}
             <TouchableOpacity
               style={styles.proLink}
-              onPress={() => {
+              sound="open" onPress={() => {
                 onClose();
                 openPaywall('sponsored_web_ad');
               }}

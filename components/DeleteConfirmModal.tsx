@@ -62,7 +62,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
         <TouchableOpacity
           style={styles.dismissOverlay}
           activeOpacity={1}
-          onPress={handleClose}
+          sound="close" onPress={handleClose}
         />
         <View
           style={[
@@ -126,7 +126,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                   borderColor: isDarkMode ? '#2E493B' : '#E2E8F0',
                 },
               ]}
-              onPress={handleClose}
+              sound="close" onPress={handleClose}
               activeOpacity={0.7}
             >
               <Text style={[styles.cancelBtnText, { color: colors.textPrimary }]}>
@@ -136,7 +136,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
 
             <TouchableOpacity
               style={styles.deleteBtn}
-              onPress={handleConfirm}
+              sound="delete" onPress={handleConfirm}
               activeOpacity={0.85}
             >
               <Ionicons name="trash" size={18} color="#FFFFFF" />

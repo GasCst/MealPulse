@@ -64,7 +64,7 @@ export const ScanViewfinderOverlay: React.FC<ScanViewfinderOverlayProps> = ({ is
     <Animated.View style={[styles.overlayContainer, animatedContainerStyle]}>
       {/* Top Close Button */}
       {onClose && (
-        <TouchableOpacity style={styles.topCloseBtn} onPress={onClose} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.topCloseBtn} sound="close" onPress={onClose} activeOpacity={0.7}>
           <Ionicons name="close" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       )}

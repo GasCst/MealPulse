@@ -178,7 +178,7 @@ export default function LogScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
             <TouchableOpacity
               style={[styles.refreshBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
-              onPress={() => router.back()}
+              sound="navigate" onPress={() => router.back()}
               activeOpacity={0.8}
             >
               <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
@@ -190,7 +190,7 @@ export default function LogScreen() {
           </View>
           <TouchableOpacity
             style={[styles.refreshBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
-            onPress={onRefresh}
+            sound="primary" onPress={onRefresh}
             activeOpacity={0.8}
           >
             <Ionicons name="refresh" size={18} color={colors.lime} />
@@ -220,7 +220,7 @@ export default function LogScreen() {
               {waterIntakeToday > 0 && (
                 <TouchableOpacity
                   style={[styles.addWaterBtn, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' }]}
-                  onPress={handleRemoveWater}
+                  sound="decrement" onPress={handleRemoveWater}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="remove" size={18} color="#EF4444" />
@@ -230,7 +230,7 @@ export default function LogScreen() {
 
               <TouchableOpacity
                 style={[styles.addWaterBtn, { backgroundColor: colors.lime }]}
-                onPress={handleAddWater}
+                sound="increment" onPress={handleAddWater}
                 activeOpacity={0.8}
               >
                 <Ionicons name="add" size={18} color="#0F172A" />
@@ -319,7 +319,7 @@ export default function LogScreen() {
                 styles.recapPlayBtn,
                 { backgroundColor: isPlayingRecap ? colors.coral : colors.lime },
               ]}
-              onPress={handlePlayDailyRecap}
+              sound={isPlayingRecap ? 'close' : 'voice'} onPress={handlePlayDailyRecap}
               disabled={isLoadingRecap}
               accessibilityLabel={t(isLoadingRecap ? 'voice_loading' : isPlayingRecap ? 'voice_stop' : 'voice_listen')}
               accessibilityState={{ busy: isLoadingRecap, disabled: isLoadingRecap }}

@@ -172,7 +172,7 @@ export default function RenewalsScreen() {
                 <View style={styles.priceGroup}>
                   <Text style={[styles.priceText, { color: colors.textPrimary }]}>${item.price.toFixed(2)}</Text>
                   <TouchableOpacity
-                    onPress={() => {
+                    sound="confirm" onPress={() => {
                       triggerHaptic('medium');
                       Alert.alert(
                         'Renewal Reminder Set',

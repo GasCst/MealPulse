@@ -38,7 +38,7 @@ export const VoiceFeatureAdModal: React.FC<VoiceFeatureAdModalProps> = ({
           </Text>
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: colors.lime }]}
-            onPress={() => {
+            sound="voice" onPress={() => {
               onClose();
               onUnlocked();
             }}
@@ -48,7 +48,7 @@ export const VoiceFeatureAdModal: React.FC<VoiceFeatureAdModalProps> = ({
           {onGoPro && (
             <TouchableOpacity
               style={styles.secondaryButton}
-              onPress={() => {
+              sound="open" onPress={() => {
                 onClose();
                 onGoPro();
               }}
@@ -56,7 +56,7 @@ export const VoiceFeatureAdModal: React.FC<VoiceFeatureAdModalProps> = ({
               <Text style={{ color: colors.textPrimary }}>Scopri PRO</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
+          <TouchableOpacity style={styles.secondaryButton} sound="close" onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>Chiudi</Text>
           </TouchableOpacity>
         </View>

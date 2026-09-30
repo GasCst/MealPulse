@@ -234,14 +234,14 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
       <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#0B1410' : '#F4F7F5' }]}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={onClose} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.backBtn} sound="close" onPress={onClose} activeOpacity={0.7}>
             <Ionicons name="chevron-back" size={24} color={colors.coral} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{mealNameTranslated}</Text>
             <Text style={styles.databaseBadge}>3.3M+ Database OpenFoodFacts</Text>
           </View>
-          <TouchableOpacity style={styles.moreBtn} onPress={() => setShowBarcodeScanner(true)} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.moreBtn} sound="scan" onPress={() => setShowBarcodeScanner(true)} activeOpacity={0.7}>
             <Ionicons name="barcode-outline" size={24} color={colors.coral} />
           </TouchableOpacity>
         </View>
@@ -265,7 +265,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
               autoCorrect={false}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={handleClearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity sound="close" onPress={handleClearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close-circle" size={18} color="#94A3B8" />
               </TouchableOpacity>
             )}
@@ -277,7 +277,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
           <TouchableOpacity
             style={[styles.quickActionBtn, { backgroundColor: isDarkMode ? '#14221B' : '#FFFFFF' }]}
             activeOpacity={0.8}
-            onPress={() => setShowBarcodeScanner(true)}
+            sound="scan" onPress={() => setShowBarcodeScanner(true)}
           >
             <Ionicons name="barcode-outline" size={18} color={colors.coral} />
             <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>Barcode</Text>
@@ -286,7 +286,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
           <TouchableOpacity
             style={[styles.quickActionBtn, { backgroundColor: isDarkMode ? '#14221B' : '#FFFFFF' }]}
             activeOpacity={0.8}
-            onPress={() => {
+            sound="scan" onPress={() => {
               onClose();
               onSelectScanAI();
             }}
@@ -306,7 +306,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
             },
           ]}
           activeOpacity={0.8}
-          onPress={() => {
+          sound="voice" onPress={() => {
             if (!isPro) {
               openPaywall('vocal_ai_search');
               return;
@@ -345,7 +345,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                     backgroundColor: selectedCategory === cat ? colors.coral : isDarkMode ? '#14221B' : '#FFFFFF',
                   },
                 ]}
-                onPress={() => handleCategoryFilter(cat)}
+                sound="select" onPress={() => handleCategoryFilter(cat)}
                 activeOpacity={0.7}
               >
                 <Text
@@ -429,7 +429,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                     { backgroundColor: isDarkMode ? '#14221B' : '#FFFFFF' },
                     isSelected && { borderColor: colors.coral, borderWidth: 1.5 },
                   ]}
-                  onPress={() => handleOpenQuantityModal(currentItem)}
+                  sound="open" onPress={() => handleOpenQuantityModal(currentItem)}
                   activeOpacity={0.7}
                 >
                   {/* Thumbnail / Emoji */}
@@ -463,7 +463,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                             borderColor: isCustomWeight ? colors.coral : (isDarkMode ? '#2D4B39' : '#CBD5E1'),
                           },
                         ]}
-                        onPress={() => handleOpenQuantityModal(currentItem)}
+                        sound="open" onPress={() => handleOpenQuantityModal(currentItem)}
                         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       >
                         <Ionicons name="scale-outline" size={11} color={colors.coral} />
@@ -502,7 +502,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                       styles.addCircle,
                       { backgroundColor: isSelected ? colors.coral : isDarkMode ? '#22382D' : '#F1F5F9' },
                     ]}
-                    onPress={() => toggleItem(currentItem)}
+                    sound={isSelected ? 'decrement' : 'increment'} onPress={() => toggleItem(currentItem)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <Ionicons
@@ -522,7 +522,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
           <View style={styles.bottomBarContainer}>
             <TouchableOpacity
               style={[styles.addMealBtn, { backgroundColor: colors.coral }]}
-              onPress={handleAddSelected}
+              sound="confirm" onPress={handleAddSelected}
               activeOpacity={0.85}
             >
               <Text style={styles.addMealBtnText}>

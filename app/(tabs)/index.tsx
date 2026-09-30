@@ -746,7 +746,7 @@ export default function HomeScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={[styles.avatarBtn, { borderColor: colors.lime, borderWidth: 1.5 }]}
-            onPress={() => {
+            sound="open" onPress={() => {
               if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowProfileModal(true);
             }}
@@ -765,7 +765,7 @@ export default function HomeScreen() {
           <View style={styles.headerRightGroup}>
             <TouchableOpacity
               style={[styles.iconCircleBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
-              onPress={() => {
+              sound="open" onPress={() => {
                 if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setShowNotifModal(true);
               }}
@@ -775,7 +775,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.iconCircleBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
-              onPress={() => {
+              sound="open" onPress={() => {
                 if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setShowProfileModal(true);
               }}
@@ -838,7 +838,7 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={[styles.activitySyncBtn, { backgroundColor: colors.limeGlow }]}
-              onPress={() => {
+              sound="primary" onPress={() => {
                 if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 triggerHealthSync(selectedDateKey);
               }}
@@ -872,7 +872,7 @@ export default function HomeScreen() {
                     borderColor: isDarkMode ? '#2E491A' : '#D9F99D',
                   },
                 ]}
-                onPress={() => {
+                sound="navigate" onPress={() => {
                   if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/(tabs)/log');
                 }}
@@ -883,7 +883,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.quickAddPlusBtn}
-                onPress={() => {
+                sound="open" onPress={() => {
                   if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowQuickLogModal(true);
                 }}
@@ -911,7 +911,7 @@ export default function HomeScreen() {
                   styles.dailyMealCard,
                   { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1 },
                 ]}
-                onPress={() => {
+                sound="open" onPress={() => {
                   if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   if (catMeals.length > 0) {
                     handleOpenCategoryDetail(catKey);
@@ -958,7 +958,7 @@ export default function HomeScreen() {
                   </View>
                   <TouchableOpacity
                     style={[styles.miniPlusBtn, { backgroundColor: colors.lime }]}
-                    onPress={(e) => {
+                    sound="open" onPress={(e) => {
                       e.stopPropagation?.();
                       if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       handleOpenFoodSearch(catKey);
@@ -981,7 +981,7 @@ export default function HomeScreen() {
                 borderColor: colors.cardBorder,
               },
             ]}
-            onPress={() => {
+            sound="navigate" onPress={() => {
               if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               router.push('/(tabs)/log');
             }}

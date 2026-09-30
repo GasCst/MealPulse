@@ -257,7 +257,7 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
               <Ionicons name="play-circle" size={14} color="#84CC16" />
               <Text style={styles.sponsoredBadgeText}>SPONSORED AI SCAN</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity sound="close" onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
@@ -307,7 +307,7 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
           <View style={styles.actionsBox}>
             <TouchableOpacity
               style={[styles.watchAdBtn, (isWatchingAd || hasShownAdThisSession) && styles.disabledBtn]}
-              onPress={handleWatchAd}
+              sound="primary" onPress={handleWatchAd}
               disabled={isWatchingAd || hasShownAdThisSession}
               activeOpacity={0.85}
             >
@@ -323,7 +323,7 @@ export const AdScanModal: React.FC<AdScanModalProps> = ({
 
             <TouchableOpacity
               style={styles.proBtn}
-              onPress={handleUpgradePro}
+              sound="open" onPress={handleUpgradePro}
               activeOpacity={0.85}
             >
               <Ionicons name="sparkles" size={16} color="#84CC16" />

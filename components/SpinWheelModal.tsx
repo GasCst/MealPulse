@@ -165,7 +165,7 @@ export const SpinWheelModal: React.FC<SpinWheelModalProps> = ({ visible, onClose
           <View style={[styles.confetti, { width: 6, height: 6, backgroundColor: '#9CC400', top: 60, left: 60 }]} />
 
           {/* Close Button */}
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+          <TouchableOpacity sound="close" onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
             <Ionicons name="close" size={18} color="#4B5259" />
           </TouchableOpacity>
 
@@ -232,7 +232,7 @@ export const SpinWheelModal: React.FC<SpinWheelModalProps> = ({ visible, onClose
             {!showWinResult && (
               <TouchableOpacity
                 style={[styles.spinBtn, isSpinning && styles.disabledSpinBtn]}
-                onPress={handleSpinWheel}
+                sound="reward" onPress={handleSpinWheel}
                 disabled={isSpinning}
                 activeOpacity={0.85}
               >
@@ -273,7 +273,7 @@ export const SpinWheelModal: React.FC<SpinWheelModalProps> = ({ visible, onClose
                 </Text>
                 <TouchableOpacity
                   style={styles.claimBtn}
-                  onPress={handleClaimJackpot}
+                  sound="reward" onPress={handleClaimJackpot}
                   disabled={loading}
                   activeOpacity={0.85}
                 >

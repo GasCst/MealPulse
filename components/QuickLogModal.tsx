@@ -56,7 +56,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback sound="close" onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
             <View style={[styles.sheetContainer, { backgroundColor: isDarkMode ? '#13201A' : '#FFFFFF' }]}>
@@ -75,7 +75,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                       { backgroundColor: isDarkMode ? '#224732' : '#D1FADF' },
                     ],
                   ]}
-                  onPress={() => setActiveTab('meal')}
+                  sound="select" onPress={() => setActiveTab('meal')}
                   activeOpacity={0.8}
                 >
                   <Ionicons
@@ -103,7 +103,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                       { backgroundColor: isDarkMode ? '#224732' : '#D1FADF' },
                     ],
                   ]}
-                  onPress={() => setActiveTab('water')}
+                  sound="select" onPress={() => setActiveTab('water')}
                   activeOpacity={0.8}
                 >
                   <Ionicons
@@ -131,7 +131,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                       { backgroundColor: isDarkMode ? '#224732' : '#D1FADF' },
                     ],
                   ]}
-                  onPress={() => setActiveTab('weight')}
+                  sound="select" onPress={() => setActiveTab('weight')}
                   activeOpacity={0.8}
                 >
                   <Ionicons
@@ -163,7 +163,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                         styles.mealCard,
                         { backgroundColor: isDarkMode ? '#2A1815' : '#FFF0ED', borderColor: '#FFD5CC' },
                       ]}
-                      onPress={() => {
+                      sound="open" onPress={() => {
                         onClose();
                         onSelectMeal('breakfast');
                       }}
@@ -184,7 +184,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                         styles.mealCard,
                         { backgroundColor: isDarkMode ? '#13281E' : '#EFF8F2', borderColor: '#C8E6C9' },
                       ]}
-                      onPress={() => {
+                      sound="open" onPress={() => {
                         onClose();
                         onSelectMeal('snack');
                       }}
@@ -208,7 +208,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                         styles.mealCard,
                         { backgroundColor: isDarkMode ? '#172E1B' : '#F4FBF1', borderColor: '#DCFCE7' },
                       ]}
-                      onPress={() => {
+                      sound="open" onPress={() => {
                         onClose();
                         onSelectMeal('lunch');
                       }}
@@ -229,7 +229,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                         styles.mealCard,
                         { backgroundColor: isDarkMode ? '#2B2715' : '#FFF9E6', borderColor: '#FEF08A' },
                       ]}
-                      onPress={() => {
+                      sound="open" onPress={() => {
                         onClose();
                         onSelectMeal('dinner');
                       }}
@@ -253,7 +253,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                   <View style={styles.waterStepperRow}>
                     <TouchableOpacity
                       style={styles.waterQuickBtn}
-                      onPress={() => {
+                      sound="increment" onPress={() => {
                         if (onLogWater) onLogWater(250);
                         onClose();
                       }}
@@ -264,7 +264,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
 
                     <TouchableOpacity
                       style={styles.waterQuickBtn}
-                      onPress={() => {
+                      sound="increment" onPress={() => {
                         if (onLogWater) onLogWater(500);
                         onClose();
                       }}
@@ -281,7 +281,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
                   <Text style={[styles.extraTabLabel, { color: colors.textPrimary }]}>{t('log_weight_today')}</Text>
                   <TouchableOpacity
                     style={[styles.confirmBtn, { backgroundColor: colors.coral }]}
-                    onPress={() => {
+                    sound="confirm" onPress={() => {
                       if (onLogWeight) onLogWeight(70);
                       onClose();
                     }}

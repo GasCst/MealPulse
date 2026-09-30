@@ -155,7 +155,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               </View>
             </View>
 
-            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDarkMode ? '#1E2F26' : '#F1F5F9' }]}>
+            <TouchableOpacity sound="close" onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDarkMode ? '#1E2F26' : '#F1F5F9' }]}>
               <Ionicons name="close" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -182,7 +182,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                     {scanned && (
                       <TouchableOpacity
                         style={styles.rescanBtn}
-                        onPress={() => {
+                        sound="scan" onPress={() => {
                           setScanned(false);
                           lastScannedCodeRef.current = null;
                         }}
@@ -197,7 +197,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 <View style={styles.noPermBox}>
                   <Ionicons name="camera-outline" size={44} color={colors.coral} />
                   <Text style={styles.noPermText}>Autorizza la fotocamera per scansionare i codici a barre</Text>
-                  <TouchableOpacity style={[styles.grantPermBtn, { backgroundColor: colors.coral }]} onPress={requestPermission}>
+                  <TouchableOpacity style={[styles.grantPermBtn, { backgroundColor: colors.coral }]} sound="primary" onPress={requestPermission}>
                     <Text style={styles.grantPermBtnText}>Consenti Fotocamera 📷</Text>
                   </TouchableOpacity>
                 </View>
@@ -217,7 +217,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               />
               <TouchableOpacity
                 style={[styles.searchEanBtn, { backgroundColor: colors.coral }]}
-                onPress={() => fetchBarcode(barcode)}
+                sound="scan" onPress={() => fetchBarcode(barcode)}
               >
                 <Ionicons name="search" size={18} color="#FFFFFF" />
               </TouchableOpacity>
@@ -279,7 +279,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                         styles.unitSmallBtn,
                         activeUnit === 'g' && { backgroundColor: colors.coral },
                       ]}
-                      onPress={() => {
+                      sound="select" onPress={() => {
                         if (activeUnit !== 'g') {
                           setActiveUnit('g');
                           setInputValue(String(Math.round(currentGrams)));
@@ -293,7 +293,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                         styles.unitSmallBtn,
                         activeUnit === 'oz' && { backgroundColor: colors.coral },
                       ]}
-                      onPress={() => {
+                      sound="select" onPress={() => {
                         if (activeUnit !== 'oz') {
                           setActiveUnit('oz');
                           const oz = (currentGrams / GRAMS_PER_OZ).toFixed(1);
@@ -342,7 +342,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
 
                 <TouchableOpacity
                   style={[styles.addFoodBtn, { backgroundColor: colors.coral }]}
-                  onPress={handleConfirmAdd}
+                  sound="confirm" onPress={handleConfirmAdd}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.addFoodBtnText}>Aggiungi al Diario ➕</Text>

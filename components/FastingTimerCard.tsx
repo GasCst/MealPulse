@@ -150,7 +150,7 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
         </View>
 
         {!isPro && !isUnlockedViaAd ? (
-          <TouchableOpacity style={[styles.proBadge, { backgroundColor: colors.lime }]} onPress={onUnlockPro}>
+          <TouchableOpacity style={[styles.proBadge, { backgroundColor: colors.lime }]} sound="open" onPress={onUnlockPro}>
             <Ionicons name="lock-closed" size={12} color="#0F172A" />
             <Text style={styles.proBadgeText}>{t('pro_feature')}</Text>
           </TouchableOpacity>
@@ -185,7 +185,7 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
                   borderWidth: 1.5,
                 },
               ]}
-              onPress={() => handleSelectProtocol(p)}
+              sound="select" onPress={() => handleSelectProtocol(p)}
               activeOpacity={0.8}
             >
               <Text
@@ -226,7 +226,7 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
             styles.mainControlBtn,
             isRunning ? styles.pauseBtn : [styles.startBtn, { backgroundColor: colors.lime }],
           ]}
-          onPress={toggleTimer}
+          sound={isRunning ? 'close' : 'primary'} onPress={toggleTimer}
           activeOpacity={0.85}
         >
           <Ionicons name={isRunning ? 'pause' : 'play'} size={18} color={isRunning ? '#FFFFFF' : '#0F172A'} />
@@ -237,7 +237,7 @@ export const FastingTimerCard: React.FC<FastingTimerCardProps> = ({
 
         <TouchableOpacity
           style={[styles.resetBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
-          onPress={resetTimer}
+          sound="close" onPress={resetTimer}
           activeOpacity={0.8}
         >
           <Ionicons name="refresh" size={18} color={colors.textSecondary} />

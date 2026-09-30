@@ -46,7 +46,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ visible, o
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <TouchableOpacity sound="close" onPress={onClose} style={styles.closeBtn}>
             <Ionicons name="close" size={24} color="#0F172A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('notifications_center')}</Text>

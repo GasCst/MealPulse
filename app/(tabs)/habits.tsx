@@ -146,7 +146,7 @@ export default function HabitsScreen() {
 
           <TouchableOpacity
             style={[styles.streakBadge, { backgroundColor: colors.limeGlow, borderColor: colors.lime }]}
-            onPress={() => {
+            sound="reward" onPress={() => {
               triggerHaptic('light');
               Alert.alert('Top Streak', '🔥 12-day streak on Nutrition Logging!');
             }}
@@ -173,7 +173,7 @@ export default function HabitsScreen() {
               value={newHabitText}
               onChangeText={setNewHabitText}
             />
-            <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.lime }]} onPress={handleAddHabit} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.lime }]} sound="open" onPress={handleAddHabit} activeOpacity={0.85}>
               <Ionicons name="add" size={22} color="#0F172A" />
             </TouchableOpacity>
           </View>
@@ -208,7 +208,7 @@ export default function HabitsScreen() {
                       backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.06)' : '#FFFBEB',
                     },
                   ]}
-                  onPress={() => {
+                  sound={lockedForFree ? 'open' : habit.completedToday ? 'toggle-off' : 'confirm'} onPress={() => {
                     if (lockedForFree) {
                       triggerHaptic('medium');
                       openPaywall('pro_habit');

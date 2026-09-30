@@ -55,7 +55,7 @@ export const AdBanner: React.FC<AdBannerProps> = ({ location = 'general' }) => {
             </View>
             <TouchableOpacity
               style={styles.removeAdsBtn}
-              onPress={() => openPaywall('ad_banner')}
+              sound="open" onPress={() => openPaywall('ad_banner')}
               activeOpacity={0.8}
             >
               <Ionicons name="close-circle-outline" size={14} color="#84CC16" />
@@ -73,7 +73,7 @@ export const AdBanner: React.FC<AdBannerProps> = ({ location = 'general' }) => {
             </View>
             <TouchableOpacity
               style={[styles.ctaBtn, { backgroundColor: isDarkMode ? '#BEF264' : '#0F172A' }]}
-              onPress={() => openPaywall('ad_banner_cta')}
+              sound="open" onPress={() => openPaywall('ad_banner_cta')}
               activeOpacity={0.85}
             >
               <Text style={[styles.ctaBtnText, { color: isDarkMode ? '#0F172A' : '#BEF264' }]}>Go Ad-Free</Text>

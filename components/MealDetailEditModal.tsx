@@ -240,7 +240,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
               </View>
             </View>
 
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.closeBtn} sound="close" onPress={onClose} activeOpacity={0.7}>
               <Ionicons name="close" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
@@ -311,7 +311,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                             : '#E2E8F0',
                         },
                       ]}
-                      onPress={() => setCategory(cat.key)}
+                      sound="select" onPress={() => setCategory(cat.key)}
                       activeOpacity={0.8}
                     >
                       <Text style={{ fontSize: 14 }}>{cat.emoji}</Text>
@@ -367,7 +367,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
               <View style={styles.stepperRow}>
                 <TouchableOpacity
                   style={[styles.stepBtn, { backgroundColor: isDarkMode ? '#203328' : '#EEF2F6' }]}
-                  onPress={() => handleAdjustWeight(-50)}
+                  sound="decrement" onPress={() => handleAdjustWeight(-50)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-50g</Text>
@@ -375,7 +375,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
 
                 <TouchableOpacity
                   style={[styles.stepBtn, { backgroundColor: isDarkMode ? '#203328' : '#EEF2F6' }]}
-                  onPress={() => handleAdjustWeight(-10)}
+                  sound="decrement" onPress={() => handleAdjustWeight(-10)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-10g</Text>
@@ -383,7 +383,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
 
                 <TouchableOpacity
                   style={[styles.stepBtn, { backgroundColor: isDarkMode ? '#203328' : '#EEF2F6' }]}
-                  onPress={() => handleAdjustWeight(10)}
+                  sound="increment" onPress={() => handleAdjustWeight(10)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+10g</Text>
@@ -391,7 +391,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
 
                 <TouchableOpacity
                   style={[styles.stepBtn, { backgroundColor: isDarkMode ? '#203328' : '#EEF2F6' }]}
-                  onPress={() => handleAdjustWeight(50)}
+                  sound="increment" onPress={() => handleAdjustWeight(50)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+50g</Text>
@@ -399,7 +399,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
 
                 <TouchableOpacity
                   style={[styles.stepBtn, { backgroundColor: isDarkMode ? '#203328' : '#EEF2F6' }]}
-                  onPress={() => handleAdjustWeight(100)}
+                  sound="increment" onPress={() => handleAdjustWeight(100)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+100g</Text>
@@ -598,7 +598,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
           <View style={styles.footerRow}>
             <TouchableOpacity
               style={[styles.deleteBtn, { borderColor: '#EF4444' }]}
-              onPress={handleDelete}
+              sound="open" onPress={handleDelete}
               activeOpacity={0.75}
             >
               <Ionicons name="trash-outline" size={20} color="#EF4444" />
@@ -607,7 +607,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
 
             <TouchableOpacity
               style={[styles.saveBtn, { backgroundColor: colors.coral }]}
-              onPress={handleSave}
+              sound="confirm" onPress={handleSave}
               activeOpacity={0.85}
             >
               <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />

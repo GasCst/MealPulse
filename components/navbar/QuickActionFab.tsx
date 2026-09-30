@@ -15,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
+import { type ButtonSoundKind } from '@/services/buttonSoundService';
 
 interface QuickActionFabProps {
   onAddFood: () => void;
@@ -31,6 +32,7 @@ interface QuickActionFabProps {
 }
 
 interface ActionTileProps {
+  sound: ButtonSoundKind;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   tint: string;
@@ -41,7 +43,7 @@ interface ActionTileProps {
   onPress: () => void;
 }
 
-function ActionTile({ label, icon, tint, index, progress, backgroundColor, textColor, onPress }: ActionTileProps) {
+function ActionTile({ label, icon, tint, index, progress, backgroundColor, textColor, sound, onPress }: ActionTileProps) {
   const animatedStyle = useAnimatedStyle(() => {
     const reveal = interpolate(progress.value, [0.13 + index * 0.09, 0.62 + index * 0.07], [0, 1], Extrapolation.CLAMP);
     return {
@@ -54,7 +56,7 @@ function ActionTile({ label, icon, tint, index, progress, backgroundColor, textC
     <Animated.View style={[styles.actionSlot, animatedStyle]}>
       <Pressable
         style={[styles.actionTile, { backgroundColor }]}
-        onPress={onPress}
+        sound={sound} onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={label}
       >
@@ -153,7 +155,7 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
           ref={buttonRef}
           onLayout={measureAnchor}
           style={[styles.floatingCenterBtn, { backgroundColor: colors.lime, opacity: isOpen ? 0 : 1 }]}
-          onPress={openExpander}
+          sound="open" onPress={openExpander}
           onLongPress={onLongPress}
           accessibilityRole="button"
           accessibilityLabel={t('fab_open')}
@@ -165,7 +167,7 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
       <Modal visible={isOpen} transparent animationType="none" onRequestClose={() => closeExpander()}>
         <View style={styles.modalRoot}>
           <Animated.View style={[styles.backdrop, backdropStyle]}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => closeExpander()} accessibilityLabel={t('fab_close')} />
+            <Pressable style={StyleSheet.absoluteFill} sound="close" onPress={() => closeExpander()} accessibilityLabel={t('fab_close')} />
           </Animated.View>
 
           <Animated.View
@@ -180,17 +182,17 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
               <Text style={[styles.panelTitle, { color: themeColors.textPrimary }]}>{t('fab_quick_actions')}</Text>
             </View>
             <View style={styles.actionGrid}>
-              <ActionTile label={t('fab_food')} icon="restaurant" tint={colors.coral || '#FF6B4A'} index={0} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} onPress={() => closeExpander(onAddFood)} />
-              <ActionTile label={t('fab_water')} icon="water" tint={colors.sky || '#0284C7'} index={1} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} onPress={() => closeExpander(onAddWater)} />
-              <ActionTile label={t('fab_scan')} icon="camera" tint={colors.purple || '#8B5CF6'} index={2} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} onPress={() => closeExpander(onQuickScan)} />
-              <ActionTile label={t('fab_diary')} icon="book" tint="#10B981" index={3} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} onPress={() => closeExpander(onOpenDiario)} />
+              <ActionTile label={t('fab_food')} icon="restaurant" tint={colors.coral || '#FF6B4A'} index={0} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} sound="open" onPress={() => closeExpander(onAddFood)} />
+              <ActionTile label={t('fab_water')} icon="water" tint={colors.sky || '#0284C7'} index={1} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} sound="increment" onPress={() => closeExpander(onAddWater)} />
+              <ActionTile label={t('fab_scan')} icon="camera" tint={colors.purple || '#8B5CF6'} index={2} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} sound="scan" onPress={() => closeExpander(onQuickScan)} />
+              <ActionTile label={t('fab_diary')} icon="book" tint="#10B981" index={3} progress={animationProgress} backgroundColor={themeColors.inputBg} textColor={themeColors.textPrimary} sound="navigate" onPress={() => closeExpander(onOpenDiario)} />
             </View>
           </Animated.View>
 
           <Animated.View style={[styles.modalFabWrap, { bottom: bottomOffset }, centerButtonStyle]}>
             <Pressable
               style={[styles.floatingCenterBtn, { backgroundColor: colors.lime, marginBottom: 0 }]}
-              onPress={() => closeExpander()}
+              sound="close" onPress={() => closeExpander()}
               accessibilityRole="button"
               accessibilityLabel={t('fab_close')}
             >

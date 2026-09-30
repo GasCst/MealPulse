@@ -162,7 +162,7 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
         {/* Text Info */}
         <TouchableOpacity
           style={styles.textColumn}
-          onPress={() => setIsExpanded((prev) => !prev)}
+          sound={isExpanded ? 'close' : 'open'} onPress={() => setIsExpanded((prev) => !prev)}
           activeOpacity={0.8}
         >
           <View style={styles.titleRow}>
@@ -188,7 +188,7 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
             styles.playButton,
             { backgroundColor: isPlaying ? colors.coral : colors.lime },
           ]}
-          onPress={handleTogglePlay}
+          sound={isPlaying ? 'close' : 'voice'} onPress={handleTogglePlay}
           disabled={isLoading}
           accessibilityLabel={t(isLoading ? 'voice_loading' : isPlaying ? 'voice_stop' : 'voice_listen')}
           accessibilityState={{ busy: isLoading, disabled: isLoading }}

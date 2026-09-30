@@ -66,7 +66,7 @@ export const BeautifulAlertModal: React.FC<BeautifulAlertProps> = ({
           <Text style={styles.titleText}>{title}</Text>
           <Text style={styles.messageText}>{message}</Text>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={onClose} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.actionBtn} sound="complete" onPress={onClose} activeOpacity={0.85}>
             <Text style={styles.actionBtnText}>{buttonText}</Text>
             <Ionicons name="arrow-forward" size={16} color="#0F172A" />
           </TouchableOpacity>

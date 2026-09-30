@@ -305,7 +305,7 @@ export const VocalSearchModal: React.FC<VocalSearchModalProps> = ({
             </View>
 
             <TouchableOpacity
-              onPress={onClose}
+              sound="close" onPress={onClose}
               style={[styles.closeBtn, { backgroundColor: isDarkMode ? '#1F2937' : '#F3F4F6' }]}
             >
               <Ionicons name="close" size={20} color={colors.textSecondary} />
@@ -318,7 +318,7 @@ export const VocalSearchModal: React.FC<VocalSearchModalProps> = ({
               <Animated.View style={[styles.micPulseRing, { transform: [{ scale: pulseAnim }] }]}>
                 <TouchableOpacity
                   style={[styles.micBtn, isRecording && styles.micBtnRecording]}
-                  onPress={() => {
+                  sound={isRecording ? 'primary' : 'voice'} onPress={() => {
                     if (isRecording) {
                       stopRecordingAndAnalyze();
                     } else {
@@ -375,7 +375,7 @@ export const VocalSearchModal: React.FC<VocalSearchModalProps> = ({
               {speechText.length > 0 && !isAnalyzing && !isRecording && (
                 <TouchableOpacity
                   style={styles.analyzeCtaBtn}
-                  onPress={handleManualTextAnalyze}
+                  sound="primary" onPress={handleManualTextAnalyze}
                   activeOpacity={0.85}
                 >
                   <Ionicons name="sparkles" size={16} color="#FFFFFF" />
@@ -437,7 +437,7 @@ export const VocalSearchModal: React.FC<VocalSearchModalProps> = ({
                 {/* Add to diary button */}
                 <TouchableOpacity
                   style={styles.addAllBtn}
-                  onPress={handleConfirmAll}
+                  sound="confirm" onPress={handleConfirmAll}
                   activeOpacity={0.85}
                 >
                   <Ionicons name="add-circle" size={20} color="#FFFFFF" />
@@ -458,7 +458,7 @@ export const VocalSearchModal: React.FC<VocalSearchModalProps> = ({
                   <TouchableOpacity
                     key={i}
                     style={[styles.presetChip, { backgroundColor: isDarkMode ? '#1F2937' : '#F3F4F6' }]}
-                    onPress={() => handleApplyPreset(p)}
+                    sound="select" onPress={() => handleApplyPreset(p)}
                     activeOpacity={0.7}
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={14} color="#8B5CF6" />

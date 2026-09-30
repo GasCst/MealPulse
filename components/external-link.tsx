@@ -12,7 +12,7 @@ export function ExternalLink({ href, ...rest }: Props) {
       {...rest}
       href={href}
       onPress={async (event) => {
-        buttonSoundService.playTap();
+        buttonSoundService.play('navigate');
         if (process.env.EXPO_OS !== 'web') {
           // Prevent the default behavior of linking to the default browser on native.
           event.preventDefault();

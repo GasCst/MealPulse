@@ -165,7 +165,7 @@ export default function StatisticsScreen() {
           </View>
           <TouchableOpacity
             style={[styles.circleBackBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
-            onPress={() => { triggerHaptic(); loadAnalytics(); }}
+            sound="primary" onPress={() => { triggerHaptic(); loadAnalytics(); }}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel={copy.refresh}
@@ -185,7 +185,7 @@ export default function StatisticsScreen() {
                   styles.periodTab,
                   isSelected && [styles.periodTabActive, { backgroundColor: colors.lime }],
                 ]}
-                onPress={() => {
+                sound="select" onPress={() => {
                   triggerHaptic();
                   setPeriod(p);
                 }}
@@ -254,7 +254,7 @@ export default function StatisticsScreen() {
               <View style={[styles.emptyIcon, { backgroundColor: colors.limeGlow }]}><Ionicons name="bar-chart-outline" size={25} color={colors.lime} /></View>
               <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{periodLogs.length > 0 ? copy.noCaloriesTitle : copy.emptyTitle}</Text>
               <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>{periodLogs.length > 0 ? copy.noCaloriesBody : copy.emptyBody}</Text>
-              <TouchableOpacity style={[styles.addMealButton, { backgroundColor: colors.lime }]} onPress={() => router.push('/(tabs)')}><Ionicons name="add" size={18} color="#0F172A" /><Text style={styles.addMealText}>{copy.addMeal}</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.addMealButton, { backgroundColor: colors.lime }]} sound="navigate" onPress={() => router.push('/(tabs)')}><Ionicons name="add" size={18} color="#0F172A" /><Text style={styles.addMealText}>{copy.addMeal}</Text></TouchableOpacity>
             </View>
           ) : (
             <View style={styles.barsFlexRow}>

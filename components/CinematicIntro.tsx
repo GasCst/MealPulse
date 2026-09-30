@@ -462,7 +462,7 @@ const CTAScene = React.memo<CTASceneProps>(({ scrollY, index, screenHeight, scre
           <Animated.View style={buttonStyle}>
             <TouchableOpacity
               style={[styles.ctaButton, { minWidth: buttonMinWidth }]}
-              onPress={onComplete}
+              sound="primary" onPress={onComplete}
               activeOpacity={0.85}
             >
               <Text style={styles.ctaButtonText}>Get Started</Text>
@@ -556,7 +556,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete }) =>
       {/* Skip button */}
       <TouchableOpacity
         style={[styles.skipButton, { top: insets.top + 10 }]}
-        onPress={handleSkip}
+        sound="navigate" onPress={handleSkip}
         activeOpacity={0.7}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >

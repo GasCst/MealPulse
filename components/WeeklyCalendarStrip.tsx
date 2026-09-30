@@ -87,7 +87,7 @@ export const WeeklyCalendarStrip: React.FC<WeeklyCalendarStripProps> = ({
                   },
                 ],
               ]}
-              onPress={() => handleSelect(item.fullDate)}
+              sound="select" onPress={() => handleSelect(item.fullDate)}
               activeOpacity={0.75}
             >
               <Text

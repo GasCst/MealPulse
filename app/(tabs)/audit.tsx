@@ -178,7 +178,7 @@ export default function AuditRewardsScreen() {
 
           <TouchableOpacity
             style={[styles.refreshBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, borderWidth: 1 }]}
-            onPress={loadUserRewards}
+            sound="primary" onPress={loadUserRewards}
             activeOpacity={0.8}
           >
             <Ionicons name="refresh" size={18} color={colors.lime} />
@@ -254,7 +254,7 @@ export default function AuditRewardsScreen() {
                 styles.celebrationPlayBtn,
                 { backgroundColor: isPlayingCelebration ? colors.coral : '#F59E0B' },
               ]}
-              onPress={handlePlayStreakCelebration}
+              sound={isPlayingCelebration ? 'close' : 'voice'} onPress={handlePlayStreakCelebration}
               disabled={isLoadingCelebration}
               accessibilityLabel={t(isLoadingCelebration ? 'voice_loading' : isPlayingCelebration ? 'voice_stop' : 'voice_listen')}
               accessibilityState={{ busy: isLoadingCelebration, disabled: isLoadingCelebration }}
@@ -299,7 +299,7 @@ export default function AuditRewardsScreen() {
                     { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
                     !item.unlocked && styles.rewardCardLocked,
                   ]}
-                  onPress={() => {
+                  sound={item.unlocked ? 'reward' : 'open'} onPress={() => {
                     triggerHaptic('light');
                     if (!item.unlocked && item.id === '4') {
                       openPaywall('rewards_pro');

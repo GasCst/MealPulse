@@ -48,7 +48,7 @@ export const IOSInstallGuideModal: React.FC = () => {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleDismiss}>
       <View style={styles.backdrop}>
-        <TouchableOpacity style={styles.overlayDismiss} activeOpacity={1} onPress={handleDismiss} />
+        <TouchableOpacity style={styles.overlayDismiss} activeOpacity={1} sound="close" onPress={handleDismiss} />
         
         <View style={[styles.card, { backgroundColor: isDarkMode ? '#13201A' : '#FFFFFF', borderColor: isDarkMode ? '#243A2E' : '#E2E8F0' }]}>
           {/* Handle */}
@@ -69,7 +69,7 @@ export const IOSInstallGuideModal: React.FC = () => {
                   : 'Add to Home Screen to run fullscreen with no browser bars.'}
               </Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={handleDismiss}>
+            <TouchableOpacity style={styles.closeBtn} sound="close" onPress={handleDismiss}>
               <Ionicons name="close" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -109,7 +109,7 @@ export const IOSInstallGuideModal: React.FC = () => {
           {/* Quick 1-Click Profile Option */}
           <TouchableOpacity
             style={[styles.profileBtn, { backgroundColor: isDarkMode ? '#20352A' : '#EEF2F6', borderColor: colors.coral }]}
-            onPress={handleDownloadProfile}
+            sound="primary" onPress={handleDownloadProfile}
             activeOpacity={0.8}
           >
             <Ionicons name="download-outline" size={18} color={colors.coral} />
@@ -121,7 +121,7 @@ export const IOSInstallGuideModal: React.FC = () => {
           {/* Continue button */}
           <TouchableOpacity
             style={[styles.doneBtn, { backgroundColor: colors.coral }]}
-            onPress={handleDismiss}
+            sound="complete" onPress={handleDismiss}
             activeOpacity={0.85}
           >
             <Text style={styles.doneBtnText}>

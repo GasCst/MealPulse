@@ -86,7 +86,7 @@ export const MealCategoryDetailModal: React.FC<MealCategoryDetailModalProps> = (
                 </View>
               </View>
 
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.closeBtn} sound="close" onPress={onClose} activeOpacity={0.7}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -135,7 +135,7 @@ export const MealCategoryDetailModal: React.FC<MealCategoryDetailModalProps> = (
                         borderColor: isDarkMode ? '#243C2E' : '#EDF2F7',
                       },
                     ]}
-                    onPress={() => setSelectedMealForEdit(item)}
+                    sound="open" onPress={() => setSelectedMealForEdit(item)}
                     activeOpacity={0.75}
                   >
                     {/* Left Icon or Image */}
@@ -173,7 +173,7 @@ export const MealCategoryDetailModal: React.FC<MealCategoryDetailModalProps> = (
                     {/* Right Delete Action */}
                     <TouchableOpacity
                       style={styles.deleteItemBtn}
-                      onPress={(e) => {
+                      sound="open" onPress={(e) => {
                         e.stopPropagation?.();
                         handleDeletePrompt(item);
                       }}
@@ -196,7 +196,7 @@ export const MealCategoryDetailModal: React.FC<MealCategoryDetailModalProps> = (
                     borderColor: colors.coral,
                   },
                 ]}
-                onPress={() => {
+                sound="open" onPress={() => {
                   onClose();
                   onAddMore(category);
                 }}
@@ -208,7 +208,7 @@ export const MealCategoryDetailModal: React.FC<MealCategoryDetailModalProps> = (
 
               <TouchableOpacity
                 style={[styles.doneBtn, { backgroundColor: colors.coral }]}
-                onPress={onClose}
+                sound="complete" onPress={onClose}
                 activeOpacity={0.85}
               >
                 <Text style={styles.doneBtnText}>{t('done')}</Text>

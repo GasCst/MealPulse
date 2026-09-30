@@ -106,7 +106,7 @@ export const ExpandableResultCard: React.FC<ExpandableResultCardProps> = ({
           </View>
         )}
 
-        <TouchableOpacity style={styles.saveMealBtn} onPress={onSave} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.saveMealBtn} sound="confirm" onPress={onSave} activeOpacity={0.85}>
           <Ionicons name="cloud-upload-outline" size={18} color="#0F172A" />
           <Text style={styles.saveMealBtnText}>Save Meal Log</Text>
         </TouchableOpacity>

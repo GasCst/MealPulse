@@ -16,7 +16,7 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
     <ThemedView>
       <TouchableOpacity
         style={styles.heading}
-        onPress={() => setIsOpen((value) => !value)}
+        sound={isOpen ? 'close' : 'open'} onPress={() => setIsOpen((value) => !value)}
         activeOpacity={0.8}>
         <IconSymbol
           name="chevron.right"

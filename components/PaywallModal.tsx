@@ -149,7 +149,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
                 <Ionicons name="sparkles" size={14} color="#0F172A" />
                 <Text style={styles.proBadgeText}>{t('paywall_badge')}</Text>
               </View>
-              <TouchableOpacity onPress={handleDismissPaywall} style={styles.closeBtn}>
+              <TouchableOpacity sound="close" onPress={handleDismissPaywall} style={styles.closeBtn}>
                 <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
@@ -180,7 +180,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
                 styles.planCard,
                 selectedPlan === 'weekly' && styles.selectedPlanCard,
               ]}
-              onPress={() => setSelectedPlan('weekly')}
+              sound="select" onPress={() => setSelectedPlan('weekly')}
               activeOpacity={0.8}
             >
               {selectedPlan === 'weekly' && (
@@ -210,7 +210,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
                 styles.planCard,
                 selectedPlan === 'monthly' && styles.selectedPlanCard,
               ]}
-              onPress={() => setSelectedPlan('monthly')}
+              sound="select" onPress={() => setSelectedPlan('monthly')}
               activeOpacity={0.8}
             >
               <View style={styles.discountTag}>
@@ -234,7 +234,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
                 styles.planCard,
                 selectedPlan === 'yearly' && styles.selectedPlanCard,
               ]}
-              onPress={() => setSelectedPlan('yearly')}
+              sound="select" onPress={() => setSelectedPlan('yearly')}
               activeOpacity={0.8}
             >
               <View style={[styles.discountTag, { backgroundColor: '#10B981' }]}>
@@ -286,7 +286,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
           {/* Action CTA Button */}
           <TouchableOpacity
             style={styles.ctaButton}
-            onPress={handleSubscribe}
+            sound="primary" onPress={handleSubscribe}
             disabled={loading}
             activeOpacity={0.85}
           >
@@ -308,16 +308,16 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({ visible, onClose }) 
 
           {/* Footer Links */}
           <View style={styles.footerRow}>
-            <TouchableOpacity onPress={handleRestore} disabled={loading} accessibilityState={{ busy: restoring, disabled: loading }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity sound="primary" onPress={handleRestore} disabled={loading} accessibilityState={{ busy: restoring, disabled: loading }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               {restoring && <ActivityIndicator size="small" color="#94A3B8" />}
               <Text style={styles.footerLink}>{restoring ? t('loading_generic') : t('restore_purchases')}</Text>
             </TouchableOpacity>
             <Text style={styles.footerDivider}>•</Text>
-            <TouchableOpacity onPress={() => Alert.alert('Terms of Service', 'Standard Apple EULA & MealPulse Terms.')}>
+            <TouchableOpacity sound="open" onPress={() => Alert.alert('Terms of Service', 'Standard Apple EULA & MealPulse Terms.')}>
               <Text style={styles.footerLink}>Terms</Text>
             </TouchableOpacity>
             <Text style={styles.footerDivider}>•</Text>
-            <TouchableOpacity onPress={() => Alert.alert('Privacy Policy', 'Your meal photos & health data are 100% private.')}>
+            <TouchableOpacity sound="open" onPress={() => Alert.alert('Privacy Policy', 'Your meal photos & health data are 100% private.')}>
               <Text style={styles.footerLink}>Privacy</Text>
             </TouchableOpacity>
           </View>

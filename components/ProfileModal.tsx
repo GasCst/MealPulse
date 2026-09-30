@@ -149,7 +149,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
         {/* Header */}
         <View style={[styles.headerRow, { borderBottomColor: colors.cardBorder }]}>
-          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.inputBg }]}>
+          <TouchableOpacity sound="close" onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.inputBg }]}>
             <Ionicons name="close" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t('profile_title')}</Text>
@@ -227,7 +227,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
               </View>
               <TouchableOpacity
                 style={[styles.healthSyncBtn, { backgroundColor: isDarkMode ? '#1F382B' : '#DCFCE7' }]}
-                onPress={() => triggerHealthSync()}
+                sound="primary" onPress={() => triggerHealthSync()}
                 activeOpacity={0.8}
               >
                 <Ionicons
@@ -257,7 +257,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
                   marginTop: 10,
                 },
               ]}
-              onPress={() => setShowHealthHubModal(true)}
+              sound="open" onPress={() => setShowHealthHubModal(true)}
               activeOpacity={0.8}
             >
               <Ionicons name="hardware-chip-outline" size={18} color="#16A34A" />
@@ -270,7 +270,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
             {/* Manual Workout Logger Button */}
             <TouchableOpacity
               style={[styles.manualWorkoutBtn, { borderColor: colors.cardBorder, marginTop: 10 }]}
-              onPress={() => setShowWorkoutModal(true)}
+              sound="open" onPress={() => setShowWorkoutModal(true)}
               activeOpacity={0.8}
             >
               <Ionicons name="barbell-outline" size={18} color="#84CC16" />
@@ -318,7 +318,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
                     borderWidth: 1,
                     borderColor: language === lang.code ? '#84CC16' : colors.cardBorder,
                   }}
-                  onPress={() => setLanguage(lang.code)}
+                  sound="select" onPress={() => setLanguage(lang.code)}
                 >
                   <Text style={{ fontSize: 16 }}>{lang.flag}</Text>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: language === lang.code ? '#0F172A' : colors.textPrimary }}>
@@ -354,7 +354,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
                   backgroundColor: unitSystem === 'metric' ? (isDarkMode ? '#341E15' : '#FFF0ED') : colors.inputBg,
                   alignItems: 'center',
                 }}
-                onPress={() => setUnitSystem('metric')}
+                sound="select" onPress={() => setUnitSystem('metric')}
                 activeOpacity={0.8}
               >
                 <Text style={{ fontSize: 20, marginBottom: 4 }}>🇪🇺</Text>
@@ -378,7 +378,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
                   backgroundColor: unitSystem === 'imperial' ? (isDarkMode ? '#341E15' : '#FFF0ED') : colors.inputBg,
                   alignItems: 'center',
                 }}
-                onPress={() => setUnitSystem('imperial')}
+                sound="select" onPress={() => setUnitSystem('imperial')}
                 activeOpacity={0.8}
               >
                 <Text style={{ fontSize: 20, marginBottom: 4 }}>🇺🇸</Text>
@@ -395,7 +395,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
           {/* Retake Onboarding Quiz Button */}
           <TouchableOpacity
             style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
-            onPress={async () => {
+            sound="navigate" onPress={async () => {
               onClose();
               await setCompletedOnboarding(false);
               await setHasSeenSpinWheel(false);
@@ -423,7 +423,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
             <View style={styles.stepperRow}>
               <TouchableOpacity
                 style={[styles.stepperBtn, { backgroundColor: colors.inputBg }]}
-                onPress={() => setTargetCalories(Math.max(1200, targetCalories - 50))}
+                sound="decrement" onPress={() => setTargetCalories(Math.max(1200, targetCalories - 50))}
               >
                 <Ionicons name="remove" size={20} color={colors.textPrimary} />
               </TouchableOpacity>
@@ -435,7 +435,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
 
               <TouchableOpacity
                 style={[styles.stepperBtn, { backgroundColor: colors.inputBg }]}
-                onPress={() => setTargetCalories(Math.min(5000, targetCalories + 50))}
+                sound="increment" onPress={() => setTargetCalories(Math.min(5000, targetCalories + 50))}
               >
                 <Ionicons name="add" size={20} color={colors.textPrimary} />
               </TouchableOpacity>
@@ -461,7 +461,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
                       borderWidth: 1,
                       borderColor: waterTarget === ml ? '#0284C7' : colors.cardBorder,
                     }}
-                    onPress={() => setWaterTarget(ml)}
+                    sound="select" onPress={() => setWaterTarget(ml)}
                   >
                     <Text style={{ fontSize: 13, fontWeight: '800', color: waterTarget === ml ? '#FFFFFF' : colors.textPrimary }}>
                       {(ml / 1000).toFixed(1)} L
@@ -479,7 +479,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
           <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
             <TouchableOpacity
               style={styles.rowBetween}
-              onPress={() => setShowBiometricsModal(true)}
+              sound="open" onPress={() => setShowBiometricsModal(true)}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="fitness-outline" size={22} color="#84CC16" />
@@ -501,7 +501,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
             {!isPro ? (
               <TouchableOpacity
                 style={styles.upgradeBtn}
-                onPress={() => {
+                sound="open" onPress={() => {
                   onClose();
                   openPaywall('profile_modal');
                 }}
@@ -517,13 +517,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
             )}
 
             {!user ? (
-              <TouchableOpacity style={[styles.loginCardBtn, { backgroundColor: colors.inputBg }]} onPress={handleLoginPress}>
+              <TouchableOpacity style={[styles.loginCardBtn, { backgroundColor: colors.inputBg }]} sound="navigate" onPress={handleLoginPress}>
                 <Ionicons name="log-in-outline" size={18} color={colors.textPrimary} />
                 <Text style={[styles.loginCardBtnText, { color: colors.textPrimary }]}>{t('sign_in')}</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.textPrimary} />
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.menuRow} onPress={handleLogout}>
+              <TouchableOpacity style={styles.menuRow} sound="close" onPress={handleLogout}>
                 <Ionicons name="log-out-outline" size={18} color="#EF4444" />
                 <Text style={[styles.menuRowText, { color: '#EF4444' }]}>Log Out / Switch Account</Text>
                 <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
@@ -539,7 +539,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
           <View style={[styles.biometricsCard, { backgroundColor: colors.modalBg }]}>
             <View style={styles.rowBetween}>
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('edit_biometrics')}</Text>
-              <TouchableOpacity onPress={() => setShowBiometricsModal(false)}>
+              <TouchableOpacity sound="close" onPress={() => setShowBiometricsModal(false)}>
                 <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -576,7 +576,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
               onChangeText={setEditGoalWeight}
             />
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveBiometrics}>
+            <TouchableOpacity style={styles.saveBtn} sound="confirm" onPress={handleSaveBiometrics}>
               <Text style={styles.saveBtnText}>{t('save_settings')}</Text>
             </TouchableOpacity>
           </View>
@@ -592,7 +592,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
                 <Ionicons name="flame" size={22} color="#FF6A45" />
                 <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t('manual_workout_title')}</Text>
               </View>
-              <TouchableOpacity onPress={() => setShowWorkoutModal(false)}>
+              <TouchableOpacity sound="close" onPress={() => setShowWorkoutModal(false)}>
                 <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -613,7 +613,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
                           borderColor: isSel ? '#84CC16' : colors.cardBorder,
                         },
                       ]}
-                      onPress={() => handleSelectWorkoutPreset(p)}
+                      sound="select" onPress={() => handleSelectWorkoutPreset(p)}
                     >
                       <Text style={{ fontSize: 14 }}>{p.emoji}</Text>
                       <Text
@@ -666,7 +666,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose }) 
               </View>
             </View>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveWorkout}>
+            <TouchableOpacity style={styles.saveBtn} sound="confirm" onPress={handleSaveWorkout}>
               <Text style={styles.saveBtnText}>{t('add_workout_btn')}</Text>
             </TouchableOpacity>
           </View>

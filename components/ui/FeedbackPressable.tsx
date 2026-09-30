@@ -6,9 +6,9 @@ import {
   TouchableWithoutFeedback as NativeTouchableWithoutFeedback,
   Switch as NativeSwitch,
 } from 'react-native';
-import { buttonSoundService } from '@/services/buttonSoundService';
+import { buttonSoundService, type ButtonSoundKind } from '@/services/buttonSoundService';
 
-type SoundPreference = { sound?: boolean };
+type SoundPreference = { sound?: boolean | ButtonSoundKind };
 
 // Keep native props and forwarded refs intact for navigation and animations.
 export const TouchableOpacity = forwardRef<
@@ -17,7 +17,7 @@ export const TouchableOpacity = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.playTap();
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativeTouchableOpacity {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;
@@ -30,7 +30,7 @@ export const Pressable = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.playTap();
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativePressable {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;
@@ -43,7 +43,7 @@ export const TouchableHighlight = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.playTap();
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativeTouchableHighlight {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;
@@ -56,7 +56,7 @@ export const TouchableWithoutFeedback = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.playTap();
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativeTouchableWithoutFeedback {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;
@@ -69,7 +69,7 @@ export const Switch = forwardRef<
 >(({ onValueChange, disabled, sound = true, ...props }, ref) => {
   const handleChange = useCallback<NonNullable<typeof onValueChange>>((value) => {
     if (disabled) return;
-    if (sound) buttonSoundService.playTap();
+    if (sound) buttonSoundService.play(sound === true ? (value ? 'toggle-on' : 'toggle-off') : sound);
     onValueChange?.(value);
   }, [disabled, onValueChange, sound]);
   return <NativeSwitch {...props} ref={ref} disabled={disabled} onValueChange={onValueChange ? handleChange : undefined} />;

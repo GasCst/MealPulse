@@ -108,7 +108,7 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
           {/* Header */}
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>{t('manual_logger_title')}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity sound="close" onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
@@ -117,7 +117,7 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
           <View style={styles.tabBar}>
             <TouchableOpacity
               style={[styles.tabItem, activeTab === 'search' && styles.activeTabItem]}
-              onPress={() => setActiveTab('search')}
+              sound="select" onPress={() => setActiveTab('search')}
             >
               <Ionicons name="search" size={16} color={activeTab === 'search' ? '#0F172A' : '#64748B'} />
               <Text style={[styles.tabText, activeTab === 'search' && styles.activeTabText]}>
@@ -127,7 +127,7 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
 
             <TouchableOpacity
               style={[styles.tabItem, activeTab === 'custom' && styles.activeTabItem]}
-              onPress={() => setActiveTab('custom')}
+              sound="select" onPress={() => setActiveTab('custom')}
             >
               <Ionicons name="create-outline" size={16} color={activeTab === 'custom' ? '#0F172A' : '#64748B'} />
               <Text style={[styles.tabText, activeTab === 'custom' && styles.activeTabText]}>
@@ -148,7 +148,7 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
                   onChangeText={setSearchQuery}
                 />
                 {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <TouchableOpacity sound="close" onPress={() => setSearchQuery('')}>
                     <Ionicons name="close-circle" size={18} color="#94A3B8" />
                   </TouchableOpacity>
                 )}
@@ -159,7 +159,7 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
                   <TouchableOpacity
                     key={food.id}
                     style={styles.foodRow}
-                    onPress={() => handleSelectFood(food)}
+                    sound="confirm" onPress={() => handleSelectFood(food)}
                     activeOpacity={0.7}
                   >
                     <View style={{ flex: 1 }}>
@@ -238,7 +238,7 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
 
               <TouchableOpacity
                 style={[styles.saveBtn, !customName.trim() && styles.disabledSaveBtn]}
-                onPress={handleAddCustom}
+                sound="confirm" onPress={handleAddCustom}
                 disabled={!customName.trim()}
               >
                 <Text style={styles.saveBtnText}>Aggiungi al Diario ➕</Text>
