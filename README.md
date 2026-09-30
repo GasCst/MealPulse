@@ -73,6 +73,13 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 - **Dynamic Daily Macro Targets**: 3 Circular SVG Progress Rings (Protein, Carbs, Fats) with real-time gram counters, target percentages, and dynamic badges.
 - **60 FPS Animations**: Powered by **React Native Reanimated v4**.
 
+### 🔘 Button Sounds & Loading Feedback
+- **Soft tap feedback**: App-owned buttons, navigation controls and switches share a quiet, original 95 ms pop sound. The WAV is bundled locally and preloaded once, so a tap does not wait for a network request.
+- **Optional sound**: Toggle **Button sounds / Suoni dei pulsanti** in Menu PRO. The preference is saved on the device.
+- **Voice preparation**: Briefing, hydration coach, daily recap, celebrations, voice previews and meal roasts show a spinner while preparing text, generating speech, downloading the WAV and starting the player. New labels follow the selected language.
+- **Scoped playback**: Each voice feature shows its own loading/playback state. Repeated generation taps are blocked; cancelled server requests cannot start stale audio or device-speech fallback.
+- **Other slow actions**: Health synchronization and purchase restoration display button loading feedback.
+
 ### 💧 Hydration & Intermittent Fasting Tracker
 - **Hydration Logging**: Instant increment (`+250 ml`, `+500 ml`) and decrement (`-250 ml`) buttons with visual fill animations.
 - **Fasting Protocols**: Supports 16:8, 18:6, 20:4, circadian rhythms, and custom windows with countdown timers, elapsed progress rings, and milestone notifications.
@@ -112,18 +119,22 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 │   ├── auth/                   # Authentication screens (Sign in, Sign up, Forgot Password)
 │   ├── onboarding.tsx          # Multi-step biometrics & macro goals onboarding flow
 │   └── _layout.tsx             # Root layout with providers & navigation shell
-├── assets/                     # App icons, splash screens, illustrations, and TTS voice samples
+├── assets/                     # App icons, splash screens, illustrations, and audio
+│   ├── sounds/                 # Original bundled button tap sound
 │   └── voices/                 # Reference WAV audio files for zero-shot voice cloning
 ├── components/                 # Reusable UI components
 │   ├── navbar/                 # QuickActionFab, AnimatedTabItem, custom bottom tab bar
 │   ├── CircularProgress.tsx    # SVG macro progress rings
 │   ├── VoiceFeatureAdModal.tsx # Rewarded AdMob modal for unlocking PRO voices
+│   ├── ui/FeedbackPressable.tsx# Native button wrappers with optional tap audio
 │   └── PaywallModal.tsx        # RevenueCat PRO subscription paywall
+├── hooks/                      # Shared UI behavior, voice loading and sound preference
 ├── constants/                  # Colors, typography, meal types, and multi-language translations
 ├── context/                    # React Contexts (Auth, Subscription, Theme, Language)
 ├── services/                   # Business logic and external API integrations
 │   ├── aiVisionService.ts      # Gemini & OpenAI meal vision processing
 │   ├── voiceCoachService.ts    # TTS client, playback management, and caching
+│   ├── buttonSoundService.ts   # Preloaded tap audio and persisted mute preference
 │   ├── voiceTextStyle.ts       # Language/dialect prompts and complete speech cache keys
 │   ├── remoteConfigService.ts # Supabase TTS endpoint lookup and offline fallback
 │   ├── healthSyncService.ts    # Apple HealthKit & Google Health Connect sync
@@ -238,6 +249,9 @@ cd android && ./gradlew bundleRelease
 The output bundle will be located at:
 `android/app/build/outputs/bundle/release/app-release.aab`
 
+The button-feedback release is **2.5.6**, Android version code **116**. Keep
+`app.json` and `android/app/build.gradle` versions synchronized before the next build.
+
 ---
 
 ## 🧪 Testing & Verification Scripts (WAT Architecture)
@@ -247,6 +261,7 @@ npx tsc --noEmit
 npm run lint
 venv_mlx_tts/bin/python -m unittest discover -s tools -p 'test_tts*.py'
 node --test tools/test_remote_config.cjs
+node --test tools/test_ui_feedback.cjs
 ```
 
 The Python suite covers routing, voice aliases, WAV format, cache invalidation,
@@ -254,6 +269,11 @@ number pronunciation and dialect rewrite guards. The JavaScript tests cover
 changed Mac addresses, concurrent lookups and offline fallbacks. Live voice
 verification checks transport and voice provenance; perceived naturalness still
 requires listening.
+
+The UI feedback suite checks button coverage, disabled controls, mute persistence,
+voice loading through WAV download/player setup, request cancellation and stale
+playback callbacks. Listen to the tap sound and test TTS on a physical phone using
+the Google Play internal testing track before promoting a release.
 
 Additional verification tools:
 - **TTS Cache Test**: `venv_mlx_tts/bin/python tools/test_tts_audio_cache.py`
