@@ -5,10 +5,12 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import * as Speech from 'expo-speech';
 import { getDynamicTtsApiUrl } from '@/services/remoteConfigService';
-import { ModelVoiceItem, DEFAULT_MODEL_VOICES } from '@/components/VoiceSelectorModal';
+import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
+import { cleanSpokenText, coachFallback, getVoiceLanguage, isNeapolitanVoice, speechCacheKey, spokenTextRules } from '@/services/voiceTextStyle';
+import { LanguageCode } from '@/constants/translations';
 
 const PREFERRED_VOICE_STORAGE_KEY = '@mealpulse_preferred_coach_voice';
-const MORNING_BRIEFING_CACHE_KEY = '@mealpulse_morning_briefing_cache';
+const MORNING_BRIEFING_CACHE_KEY = '@mealpulse_morning_briefing_v3';
 
 export const DEFAULT_COACH_VOICE: ModelVoiceItem = {
   id: 'zio_italiano',
@@ -164,7 +166,7 @@ class VoiceCoachService {
   /**
    * Fallback istantaneo a Expo Speech se XTTS backend non è raggiungibile
    */
-  private async playNativeSpeechFallback(text: string, voiceId: string): Promise<() => Promise<void>> {
+  private async playNativeSpeechFallback(text: string, voiceId: string, language: LanguageCode): Promise<() => Promise<void>> {
     console.log('[VoiceCoachService] Using Expo Speech native synthesizer fallback for voice:', voiceId);
     this.setPlaybackState(true, false, voiceId);
 
@@ -172,22 +174,13 @@ class VoiceCoachService {
       Speech.stop();
     } catch {}
 
-    const isFemale =
-      voiceId.includes('fem') ||
-      voiceId.includes('diva') ||
-      voiceId.includes('donna') ||
-      voiceId.includes('girl') ||
-      voiceId.includes('nonna') ||
-      voiceId.includes('sofia');
-    const isFast = voiceId.includes('chef') || voiceId.includes('gordon');
-
     const cleanText = text.replace(/\.{2,}/g, '. ').replace(/[_*#]/g, '').trim();
 
     return new Promise((resolve) => {
       Speech.speak(cleanText, {
-        language: 'it-IT',
-        pitch: isFemale ? 1.16 : isFast ? 0.92 : 1.0,
-        rate: isFast ? 1.05 : 0.98,
+        language,
+        pitch: 1.0,
+        rate: 1.0,
         onStart: () => {
           this.setPlaybackState(true, false, voiceId);
         },
@@ -213,7 +206,7 @@ class VoiceCoachService {
   }
 
   /**
-   * Riproduce una frase usando la voce specificata tramite XTTS-v2 Docker backend con fallback nativo indistruttibile.
+   * Riproduce una frase usando la voce specificata tramite il server locale con cache e fallback del dispositivo.
    */
   public async playSpeech(
     text: string,
@@ -224,7 +217,9 @@ class VoiceCoachService {
     const currentVoice = voiceId || (await this.getPreferredCoachVoice()).id;
     this.setPlaybackState(false, true, currentVoice);
 
-    const cacheKey = `${currentVoice}_${encodeURIComponent(text.slice(0, 60))}`;
+    const language = await getVoiceLanguage();
+    text = cleanSpokenText(text);
+    const cacheKey = speechCacheKey(text, currentVoice, language);
     const cachedUri = this.audioCache[cacheKey];
 
     if (cachedUri) {
@@ -265,6 +260,7 @@ class VoiceCoachService {
         body: JSON.stringify({
           text,
           voice: currentVoice,
+          language,
         }),
         signal: controller.signal,
       });
@@ -300,7 +296,7 @@ class VoiceCoachService {
       return await this.playFromUri(tempWavPath, currentVoice);
     } catch (err) {
       console.warn('[VoiceCoachService] XTTS server unreachable or timed out, triggering instant native speech fallback:', err);
-      return await this.playNativeSpeechFallback(text, currentVoice);
+      return await this.playNativeSpeechFallback(text, currentVoice, language);
     }
   }
 
@@ -351,8 +347,10 @@ class VoiceCoachService {
     voice?: ModelVoiceItem
   ): Promise<string> {
     const activeVoice = voice || (await this.getPreferredCoachVoice());
-    const today = new Date().toISOString().split('T')[0];
-    const cacheKey = `${MORNING_BRIEFING_CACHE_KEY}_${today}_${activeVoice.id}`;
+    const language = await getVoiceLanguage();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+    const cacheKey = `${MORNING_BRIEFING_CACHE_KEY}_${today}_${activeVoice.id}_${language}_${targetCalories}_${targetProtein}`;
 
     try {
       const cached = await AsyncStorage.getItem(cacheKey);
@@ -365,13 +363,15 @@ Dati di oggi: Budget calorico: ${targetCalories} kcal, Target proteine: ${target
 REGOLE:
 1. Sii energico, motivante e incisivo, con il tuo stile e cadenza tipica (${activeVoice.cadence}).
 2. Massimo 2 frasi concise (15-20 parole).
-3. Inserisci i puntini di sospensione '...' per dare respiro alla sintesi vocale.
-4. Rispondi SOLO con il testo parlato in italiano, senza virgolette.`;
+3. Nessuna promessa medica o giudizio sul corpo.
+${spokenTextRules(activeVoice.id, language)}`;
 
     const generated = await this.callGeminiQuick(prompt);
-    const result =
+    const result = cleanSpokenText(
       generated ||
-      (activeVoice.id === 'chef_sarcastico'
+      (language !== 'it' || isNeapolitanVoice(activeVoice.id)
+        ? coachFallback('morning', language, activeVoice.id, { calories: targetCalories, protein: targetProtein })
+        : activeVoice.id === 'chef_sarcastico'
         ? `Sveglia, asino!... Oggi hai un budget di ${targetCalories} calorie e ${targetProtein}g di proteine... Meno scuse e massima disciplina!`
         : activeVoice.id === 'diva_ironica'
         ? `Buongiorno darling!... Oggi ${targetCalories} calorie e ${targetProtein}g di proteine... Si mangia chic e con classe!`
@@ -379,9 +379,7 @@ REGOLE:
         ? `A regà, sveglia!... Oggi se magnano ${targetCalories} calorie e ${targetProtein}g de proteine... Rigorosi e spietati!`
         : activeVoice.id === 'if_sara'
         ? `Buongiorno bestie!... Oggi ${targetCalories} calorie e ${targetProtein}g di proteine... Spacchiamo tutto insieme!`
-        : activeVoice.id === 'zio_italiano'
-        ? `Buongiorno guagliò!... Oggi hai ${targetCalories} calorie e ${targetProtein}g di proteine... magna bene e spacca tutto!`
-        : `Buongiorno! Oggi hai un budget di ${targetCalories} calorie e ${targetProtein}g di proteine... Costanza e disciplina!`);
+        : `Buongiorno! Oggi hai un budget di ${targetCalories} calorie e ${targetProtein}g di proteine... Costanza e disciplina!`));
 
     try {
       await AsyncStorage.setItem(cacheKey, result);
@@ -395,14 +393,18 @@ REGOLE:
   // ==========================================
   public async playWaterCheer(intakeMl: number, targetMl: number): Promise<void> {
     const activeVoice = await this.getPreferredCoachVoice();
+    const language = await getVoiceLanguage();
     const remainingMl = Math.max(0, targetMl - intakeMl);
     const remainingGlasses = Math.ceil(remainingMl / 250);
 
+    if (language !== 'it' || isNeapolitanVoice(activeVoice.id)) {
+      await this.playSpeech(coachFallback('water', language, activeVoice.id, { glasses: remainingGlasses }), activeVoice.id);
+      return;
+    }
+
     let phrase = '';
     if (remainingMl <= 0) {
-      if (activeVoice.id === 'zio_italiano') {
-        phrase = "Maronna mia, hai finito tutta l'acqua!... Campione assoluto, salute di ferro!";
-      } else if (activeVoice.id === 'chef_sarcastico') {
+      if (activeVoice.id === 'chef_sarcastico') {
         phrase = "Obiettivo acqua completato!... Finalmente un briciolo di disciplina in questo corpo!";
       } else if (activeVoice.id === 'diva_ironica') {
         phrase = "Target acqua completato darling!... Idratazione da top model, favolosa!";
@@ -424,13 +426,6 @@ REGOLE:
           `L'idratazione è vita cara!... Continua così verso i ${targetMl} millilitri!`,
         ];
         phrase = divaPhrases[Math.floor(Math.random() * divaPhrases.length)];
-      } else if (activeVoice.id === 'zio_italiano') {
-        const zioPhrases = [
-          `Uè wagliò, bevi fino all'ultima goccia!... Mancano solo ${remainingGlasses} bicchieri!`,
-          `Maronna mia che sete!... Idratazione al ${Math.round((intakeMl / targetMl) * 100)} percento, forza!`,
-          `Un altro bicchiere andato!... Fatti valere guagliò!`,
-        ];
-        phrase = zioPhrases[Math.floor(Math.random() * zioPhrases.length)];
       } else {
         const phrases = [
           `Ottimo sorso!... Mancano solo ${remainingGlasses} bicchieri all'obiettivo!`,
@@ -456,6 +451,7 @@ REGOLE:
     voice?: ModelVoiceItem
   ): Promise<string> {
     const activeVoice = voice || (await this.getPreferredCoachVoice());
+    const language = await getVoiceLanguage();
     const balance = eatenCal - targetCal;
     const isUnder = balance <= 0;
 
@@ -468,11 +464,14 @@ Dati:
 - Pasti registrati: ${mealsCount}
 REGOLE:
 1. Stile iconico, energico e spassoso (${activeVoice.cadence}), massimo 20-25 parole.
-2. Inserisci puntini '...' per le pause sceniche del TTS.
-3. Rispondi UNICAMENTE con la battuta recensione in italiano.`;
+2. Ironizza con leggerezza, senza giudizi sul corpo, colpa o suggerimenti di compensare il cibo con esercizio.
+${spokenTextRules(activeVoice.id, language)}`;
 
     const generated = await this.callGeminiQuick(prompt);
     if (generated) return generated;
+    if (language !== 'it' || isNeapolitanVoice(activeVoice.id)) {
+      return coachFallback('recap', language, activeVoice.id, { calories: eatenCal, target: targetCal });
+    }
 
     if (activeVoice.id === 'chef_sarcastico') {
       return isUnder
@@ -488,11 +487,6 @@ REGOLE:
       return isUnder
         ? `Recap della sera!... ${eatenCal} calorie su ${targetCal}... Bravo, hai resistito alle abbuffate!`
         : `Ma che combini!... ${eatenCal} calorie secche, hai sforato di brutto!... Domani se corre al parco!`;
-    }
-    if (activeVoice.id === 'zio_italiano') {
-      return isUnder
-        ? `Uè guagliò, resoconto della sera!... ${eatenCal} calorie su ${targetCal}... Sei stato 'na spada oggi!`
-        : `Uè maronna mia!... ${eatenCal} calorie, hai magnato troppo guagliò!... Domani 'na bella camminata!`;
     }
     if (activeVoice.id === 'if_sara') {
       return isUnder
@@ -515,17 +509,21 @@ REGOLE:
     voice?: ModelVoiceItem
   ): Promise<string> {
     const activeVoice = voice || (await this.getPreferredCoachVoice());
+    const language = await getVoiceLanguage();
 
     const prompt = `Sei ${activeVoice.name} (${activeVoice.styleTag}), personalità: ${activeVoice.personality}.
 Celebra con entusiasmo travolgente l'utente che ha raggiunto uno streak di ${streakDays} GIORNI CONSECUTIVI di tracking su MealPulse!
 REGOLE:
 1. Tripudio di gioia, motivazione e rispetto per la costanza.
 2. Stile e cadenza ${activeVoice.cadence}.
-3. Massimo 18-22 parole, inserisci '...' per dare enfasi teatrale.
-4. Rispondi solo con la frase in italiano.`;
+3. Massimo 18-22 parole, con punteggiatura naturale.
+${spokenTextRules(activeVoice.id, language)}`;
 
     const generated = await this.callGeminiQuick(prompt);
     if (generated) return generated;
+    if (language !== 'it' || isNeapolitanVoice(activeVoice.id)) {
+      return coachFallback('streak', language, activeVoice.id, { days: streakDays });
+    }
 
     if (activeVoice.id === 'chef_sarcastico') {
       return `Incredibile, ${streakDays} giorni di streak!... Finalmente un po' di serietà e disciplina degna di una brigata!`;
@@ -535,9 +533,6 @@ REGOLE:
     }
     if (activeVoice.id === 'roastmaster') {
       return `Daje tutta!... ${streakDays} giorni di fila senza sgarrare!... Chi l'avrebbe mai detto, sei un treno!`;
-    }
-    if (activeVoice.id === 'zio_italiano') {
-      return `Maronna santissima!... ${streakDays} giorni di fila guagliò!... Sei 'o re di MealPulse, un fenomeno vero!`;
     }
     if (activeVoice.id === 'if_sara') {
       return `Omg bestie!... ${streakDays} giorni consecutivi di tracking!... Sei letteralmente un'ispirazione!`;
@@ -580,10 +575,10 @@ REGOLE:
           const clean = raw
             .replace(/\*[^*]+\*/g, '')
             .replace(/\([^)]+\)/g, '')
-            .replace(/^["'«\s]+/, '')
-            .replace(/["'»\s]+$/, '')
+            .replace(/^["«\s]+/, '')
+            .replace(/["»\s]+$/, '')
             .trim();
-          if (clean.length > 5) return clean;
+          if (clean.length > 5) return cleanSpokenText(clean);
         }
       } catch {}
     }

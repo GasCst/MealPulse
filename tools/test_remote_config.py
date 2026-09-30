@@ -1,43 +1,70 @@
 #!/usr/bin/env python3
+"""Verify the same Supabase URL lookup and voice request used by the phone.
+
+Run with venv_mlx_tts/bin/python tools/test_remote_config.py.
+Credentials are loaded from local environment/.env, never embedded or printed.
 """
-Test deterministic verification of Supabase Dynamic Remote Config for MealPulse TTS.
-"""
-import urllib.request
+import argparse
+import io
 import json
 import os
+from pathlib import Path
+import time
+import urllib.request
+import wave
 
-SUPABASE_URL = "https://bjnqebnaboxufnxkngjb.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqbnFlYm5hYm94dWZueGtuZ2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyMzA0NjMsImV4cCI6MjEwMDgwNjQ2M30.UmzVcEv8KnGS70iKvUa0CCTpMMdWdO2WWI6GQVb1oiQ"
+from dotenv import dotenv_values
+
 
 def test_supabase_remote_config():
-    print("--- 1. Testing Supabase Remote Config Fetch ---")
-    url = f"{SUPABASE_URL}/rest/v1/app_config?key=eq.tts_api_url&select=value"
-    req = urllib.request.Request(url, headers={
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {SUPABASE_ANON_KEY}"
-    })
-    
-    with urllib.request.urlopen(req, timeout=5) as response:
-        assert response.status == 200, f"Failed with status {response.status}"
-        data = json.loads(response.read().decode('utf-8'))
-        print(f"Supabase response: {data}")
-        assert len(data) > 0, "No records returned"
-        tts_url = data[0]['value']
-        print(f"Retrieved TTS URL: {tts_url}")
-        
-    print("\n--- 2. Testing Target TTS Endpoint Health ---")
-    health_url = f"{tts_url}/health"
-    req_health = urllib.request.Request(health_url)
-    with urllib.request.urlopen(req_health, timeout=5) as response:
-        assert response.status == 200, f"Target health failed: {response.status}"
-        health_data = json.loads(response.read().decode('utf-8'))
-        print(f"Target TTS Health Response: {health_data}")
-        assert health_data.get("status") == "ok", "Status is not ok"
-        voices = health_data.get("voices_available", [])
-        assert "napoletano" in voices or "zio_italiano" in voices, "Zio Napoletano missing"
-        print("  ✓ Supabase remote config URL is reachable and XTTS service is healthy!")
-        
-    print("\n>>> ALL TESTS PASSED: Supabase Dynamic Config is live, verified, and operational! <<<")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--voice", default="zio_italiano")
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    config = {**dotenv_values(root / ".env"), **os.environ}
+    base = config["EXPO_PUBLIC_SUPABASE_URL"].rstrip("/")
+    key = config["EXPO_PUBLIC_SUPABASE_ANON_KEY"]
+    request = urllib.request.Request(
+        base + "/rest/v1/app_config?key=eq.tts_api_url&select=value",
+        headers={"apikey": key, "Authorization": "Bearer " + key},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        rows = json.load(response)
+    if not rows or not rows[0].get("value"):
+        raise RuntimeError("No TTS URL configured in Supabase")
+    target = rows[0]["value"].rstrip("/")
+    print("Supabase TTS endpoint:", target)
+    with urllib.request.urlopen(target + "/health", timeout=5) as response:
+        health = json.load(response)
+    if health.get("status") != "ok" or not health.get("model_loaded"):
+        raise RuntimeError("TTS model is not ready")
+    aliases = {"zio_italiano": "napoletano", "chef_sarcastico": "chef_gordon",
+               "diva_ironica": "diva", "if_sara": "sara"}
+    expected = aliases.get(args.voice, args.voice)
+    request = urllib.request.Request(
+        target + "/api/v1/tts/roast",
+        data=json.dumps({"text": "Uè, guagliò! Jamme, oggi partiamo con energia.",
+                         "voice": args.voice, "language": "it"}).encode(),
+        headers={"Content-Type": "application/json", "Accept": "audio/wav"},
+    )
+    started = time.monotonic()
+    with urllib.request.urlopen(request, timeout=28) as response:
+        audio = response.read()
+        actual = response.headers.get("X-Voice-Id")
+        if actual != expected:
+            raise RuntimeError(f"Wrong voice: expected {expected}, received {actual}")
+        print("Voice:", actual, "Engine:", response.headers.get("X-Engine"))
+    with wave.open(io.BytesIO(audio)) as wav:
+        if (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) != (24000, 1, 2):
+            raise RuntimeError("Unexpected WAV format")
+        if wav.getnframes() <= 2400:
+            raise RuntimeError("Empty or truncated voice audio")
+    output = root / ".tmp" / "tts-diagnostics" / (args.voice + "-remote.wav")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(audio)
+    print(f"Verified remote config, correct voice and WAV in {time.monotonic() - started:.2f}s.")
+    print("Audio saved:", output)
+
 
 if __name__ == "__main__":
     test_supabase_remote_config()

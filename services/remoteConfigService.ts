@@ -5,7 +5,7 @@ import { supabase, ExpoGoSafeAsyncStorage } from './supabaseService';
 const TTS_URL_STORAGE_KEY = '@mealpulse_remote_tts_url';
 
 let inMemoryTtsUrl: string | null = null;
-let isPrefetching = false;
+let remoteFetch: Promise<string | null> | null = null;
 
 /**
  * Risolve dinamicamente l'endpoint del microservizio TTS:
@@ -23,109 +23,78 @@ export async function getDynamicTtsApiUrl(forceRefresh: boolean = false): Promis
     }
   }
 
-  // 2. Se non forziamo il refresh e abbiamo la cache in RAM, usiamola
-  if (!forceRefresh && inMemoryTtsUrl) {
-    return inMemoryTtsUrl;
-  }
-
-  // 3. Controlla la cache persistente locale per risposta immediata senza lag
-  if (!forceRefresh) {
-    try {
-      const cached = await ExpoGoSafeAsyncStorage.getItem(TTS_URL_STORAGE_KEY);
-      if (cached && typeof cached === 'string' && cached.startsWith('http')) {
-        inMemoryTtsUrl = cached.replace(/\/+$/, '');
-        // Esegui sincronizzazione di background silenziosa da Supabase
-        prefetchRemoteConfig().catch(() => {});
-        return inMemoryTtsUrl;
-      }
-    } catch {}
-  }
-
-  // 4. Scarica da Supabase Cloud DB (app_config) con timeout di sicurezza di 2500ms
+  // Ogni richiesta controlla Supabase: il Mac può cambiare IP nella stessa sessione.
   try {
     const remoteUrl = await fetchFromSupabase();
-    if (remoteUrl) {
-      inMemoryTtsUrl = remoteUrl;
-      await ExpoGoSafeAsyncStorage.setItem(TTS_URL_STORAGE_KEY, remoteUrl).catch(() => {});
-      return remoteUrl;
-    }
+    if (remoteUrl) return remoteUrl;
   } catch (err) {
     console.warn('[RemoteConfig] Supabase fetch error, fallback to local:', err);
   }
 
-  // 5. Fallback se Supabase non risponde o dispositivo offline
+  // La cache serve soltanto quando la configurazione remota non è raggiungibile.
+  if (!forceRefresh) {
+    if (inMemoryTtsUrl) return inMemoryTtsUrl;
+    try {
+      const cached = normalizeTtsUrl(await ExpoGoSafeAsyncStorage.getItem(TTS_URL_STORAGE_KEY));
+      if (cached) {
+        inMemoryTtsUrl = cached;
+        return cached;
+      }
+    } catch {}
+  }
   return getLocalFallbackUrl();
+}
+
+function normalizeTtsUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const clean = value.trim().replace(/\/+$/, '');
+  return /^https?:\/\/[^\s]+$/i.test(clean) ? clean : null;
 }
 
 /**
  * Interroga la tabella 'app_config' su Supabase per la chiave 'tts_api_url'
  */
-async function fetchFromSupabase(): Promise<string | null> {
-  const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
-
-  const queryPromise = (async () => {
+function fetchFromSupabase(): Promise<string | null> {
+  if (remoteFetch) return remoteFetch;
+  remoteFetch = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
     try {
       const { data, error } = await supabase
         .from('app_config')
         .select('value')
         .eq('key', 'tts_api_url')
+        .abortSignal(controller.signal)
         .maybeSingle();
 
-      if (!error && data?.value && typeof data.value === 'string' && data.value.trim().length > 0) {
-        return data.value.trim().replace(/\/+$/, '');
+      const remoteUrl = !error ? normalizeTtsUrl(data?.value) : null;
+      if (remoteUrl) {
+        inMemoryTtsUrl = remoteUrl;
+        await ExpoGoSafeAsyncStorage.setItem(TTS_URL_STORAGE_KEY, remoteUrl).catch(() => {});
+        return remoteUrl;
       }
     } catch (e) {
       console.warn('[RemoteConfig] Query exception:', e);
+    } finally {
+      clearTimeout(timer);
     }
     return null;
-  })();
-
-  return Promise.race([queryPromise, timeoutPromise]);
+  })().finally(() => { remoteFetch = null; });
+  return remoteFetch;
 }
 
 /**
  * Precarica e sincronizza in background la configurazione remota all'avvio dell'app
  */
 export async function prefetchRemoteConfig(): Promise<void> {
-  if (isPrefetching) return;
-  isPrefetching = true;
   try {
     const remoteUrl = await fetchFromSupabase();
     if (remoteUrl) {
-      inMemoryTtsUrl = remoteUrl;
-      await ExpoGoSafeAsyncStorage.setItem(TTS_URL_STORAGE_KEY, remoteUrl).catch(() => {});
       console.log('[RemoteConfig] Synced TTS URL from Supabase:', remoteUrl);
     }
   } catch (err) {
     console.warn('[RemoteConfig] Prefetch failed:', err);
-  } finally {
-    isPrefetching = false;
   }
-}
-
-/**
- * Consente l'aggiornamento dinamico dell'endpoint TTS su Supabase
- */
-export async function updateRemoteTtsApiUrl(newUrl: string): Promise<boolean> {
-  const cleanUrl = newUrl.trim().replace(/\/+$/, '');
-  try {
-    const { error } = await supabase
-      .from('app_config')
-      .upsert({
-        key: 'tts_api_url',
-        value: cleanUrl,
-        updated_at: new Date().toISOString(),
-      });
-
-    if (!error) {
-      inMemoryTtsUrl = cleanUrl;
-      await ExpoGoSafeAsyncStorage.setItem(TTS_URL_STORAGE_KEY, cleanUrl).catch(() => {});
-      return true;
-    }
-  } catch (e) {
-    console.error('[RemoteConfig] Update error:', e);
-  }
-  return false;
 }
 
 /**

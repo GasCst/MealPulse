@@ -24,6 +24,7 @@ import { RoastUnlockModal, UnlockableVoice } from './RoastUnlockModal';
 import { VoiceSelectorModal, ModelVoiceItem, DEFAULT_MODEL_VOICES } from './VoiceSelectorModal';
 import { getDynamicTtsApiUrl } from '@/services/remoteConfigService';
 import { generateCustomVoiceRoast } from '@/services/aiVisionService';
+import { cleanSpokenText, speechCacheKey } from '@/services/voiceTextStyle';
 
 export interface CharacterRoasts {
   zio_italiano?: string;
@@ -149,7 +150,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
   onConfirm,
 }) => {
   const { colors, isDarkMode } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isPro, openPaywall } = useSubscription();
   const [servingMultiplier, setServingMultiplier] = useState<number>(1.0);
 
@@ -180,6 +181,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
   // Cache dei testi generati con AI per le voci di base del modello
   const [customRoasts, setCustomRoasts] = useState<Record<string, string>>({});
   const customRoastsRef = useRef<Record<string, string>>({});
+  const customRoastKeysRef = useRef<Record<string, string>>({});
 
   const handleSelectCharacter = (char: ComedyCharacter) => {
     const isLocked = char.isProOnly && !isPro && !unlockedCharacters[char.id];
@@ -346,7 +348,9 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
     setAudioError(null);
 
     // 0. GENERAZIONE TESTO ROAST DEDICATO CON GEMINI FLASH PER VOCI DEL MODELLO O PERSONAGGI COMICI
-    let textToSpeak = customRoastsRef.current[selectedVoice];
+    const textKey = JSON.stringify([selectedVoice, language, data?.food_name, currentCalories]);
+    let textToSpeak = customRoastKeysRef.current[selectedVoice] === textKey
+      ? customRoastsRef.current[selectedVoice] : undefined;
     if (!textToSpeak) {
       const isCustom = !COMEDY_CHARACTERS.some((c) => c.id === selectedVoice);
       if (isCustom) {
@@ -366,7 +370,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       } else {
         // Personaggio comico (zio_italiano, chef_sarcastico, diva_ironica, roastmaster, if_sara)
         const charRoast = (data?.character_roasts as any)?.[selectedVoice];
-        if (charRoast && charRoast.trim().length > 0) {
+        if (language === 'it' && currentCalories === data?.calories && charRoast && charRoast.trim().length > 0) {
           textToSpeak = charRoast;
         } else if (COMEDY_PROFILES[selectedVoice]) {
           try {
@@ -383,8 +387,10 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       }
 
       if (textToSpeak) {
-        customRoastsRef.current[selectedVoice] = textToSpeak;
-        setCustomRoasts((prev) => ({ ...prev, [selectedVoice]: textToSpeak }));
+        const readyText = textToSpeak;
+        customRoastsRef.current[selectedVoice] = readyText;
+        customRoastKeysRef.current[selectedVoice] = textKey;
+        setCustomRoasts((prev) => ({ ...prev, [selectedVoice]: readyText }));
       }
     }
 
@@ -400,9 +406,11 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       setIsLoadingAudio(false);
       return;
     }
+    textToSpeak = cleanSpokenText(textToSpeak);
 
     // 1. VERIFICA CACHE LOCALE (Se l'audio per questo personaggio è già stato generato, riproduci a 0ms!)
-    const cachedUri = audioCacheRef.current[selectedVoice];
+    const audioKey = speechCacheKey(textToSpeak, selectedVoice, language);
+    const cachedUri = audioCacheRef.current[audioKey];
     if (cachedUri) {
       try {
         if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -477,6 +485,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
         body: JSON.stringify({
           text: textToSpeak,
           voice: selectedVoice,
+          language,
         }),
       });
 
@@ -493,7 +502,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         const blob = await response.blob();
         const audioUrl = URL.createObjectURL(blob);
-        audioCacheRef.current[selectedVoice] = audioUrl;
+        audioCacheRef.current[audioKey] = audioUrl;
 
         const audio = new (window as any).Audio(audioUrl);
         webAudioRef.current = audio;
@@ -534,7 +543,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
         return;
       }
 
-      audioCacheRef.current[selectedVoice] = tempWavPath;
+      audioCacheRef.current[audioKey] = tempWavPath;
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: tempWavPath },
@@ -912,7 +921,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
               <View style={[styles.roastBox, { backgroundColor: isDarkMode ? '#14231B' : '#FFFFFF' }]}>
                 {/* Citazione Roast */}
                 <Text style={[styles.roastQuoteText, { color: colors.textPrimary }]}>
-                  "{currentRoastText}"
+                  &quot;{currentRoastText}&quot;
                 </Text>
 
                 {/* Player Audio Bar con Visualizer animato */}

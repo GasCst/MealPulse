@@ -1,3 +1,5 @@
+import { cleanSpokenText, coachFallback, getVoiceLanguage, isNeapolitanVoice, spokenTextRules } from '@/services/voiceTextStyle';
+
 /**
  * AI Vision & Voice Nutrition Service — Powered by Google Gemini AI
  * High-speed multimodality for instant photo & spoken voice meal recognition.
@@ -229,7 +231,7 @@ REGOLE FONDAMENTALI:
 - "roast_speech": "La battuta dello Zio Napoletano"
 2. MASSIMA VARIETÀ CREATIVA: Se è cibo, inventa ogni battuta da zero, reagendo esattamente a ciò che è visibile nella foto. VIETATO riutilizzare le stesse formule d'apertura o copiare le stesse parole per pasti diversi.
 3. ZERO BODY SHAMING: Deridi spietatamente la pietanza o gli ingredienti, MAI il corpo, il peso o la persona.
-4. TIMING VOCALE: Inserisci sempre puntini di sospensione '...' per creare la pausa scenica prima della chiusura finale.`;
+4. DIZIONE: Usa frasi brevi e punteggiatura naturale, senza puntini di sospensione o indicazioni di scena.`;
 
   // Prioritize active, high-throughput Google Gemini models
   const endpointsToTry = [
@@ -310,7 +312,8 @@ export async function analyzeMealPlateImage(
 
   const inAppKey = userApiKey?.trim();
   const envGeminiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
-  const geminiKey = inAppKey || envGeminiKey || 'AQ.Ab8RN6JYx8SCCc6JIN9uPWNj2ad2DuH8bpdK3Jg2eLJ9AYxAXg';
+  const geminiKey = inAppKey || envGeminiKey || '';
+  if (!geminiKey) throw new Error('Configura una chiave Gemini nelle impostazioni o nel file .env.');
 
   return await callGeminiVisionAPI(cleanBase64, geminiKey);
 }
@@ -329,7 +332,8 @@ export async function parseMealFromVoiceText(
 
   const inAppKey = userApiKey?.trim();
   const envGeminiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
-  const apiKey = inAppKey || envGeminiKey || 'AQ.Ab8RN6JYx8SCCc6JIN9uPWNj2ad2DuH8bpdK3Jg2eLJ9AYxAXg';
+  const apiKey = inAppKey || envGeminiKey || '';
+  if (!apiKey) throw new Error('Configura una chiave Gemini nelle impostazioni o nel file .env.');
 
   const prompt = `You are an expert AI nutritionist. Convert the user's spoken meal description into a structured list of foods with accurate portion weights (in grams), calories, and macronutrients (protein, carbs, fat), plus a suitable emoji for each item.
 Language: Italian / Multilingual.
@@ -445,7 +449,8 @@ export async function parseMealFromAudioBase64(
 
   const inAppKey = userApiKey?.trim();
   const envGeminiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
-  const apiKey = inAppKey || envGeminiKey || 'AQ.Ab8RN6JYx8SCCc6JIN9uPWNj2ad2DuH8bpdK3Jg2eLJ9AYxAXg';
+  const apiKey = inAppKey || envGeminiKey || '';
+  if (!apiKey) throw new Error('Configura una chiave Gemini nelle impostazioni o nel file .env.');
 
   const prompt = `You are an expert AI speech-to-nutrition recognizer. Listen to the user's spoken meal audio carefully.
 1. Transcribe the user's spoken words accurately (in Italian or the spoken language).
@@ -579,7 +584,7 @@ export interface VoicePersonalityProfile {
 }
 
 /**
- * Genera in millisecondi (<400ms) una battuta comica, ironica o tematica
+ * Genera una battuta breve coerente con il personaggio e la lingua scelta
  * per una specifica voce AI del modello sul piatto analizzato.
  */
 export async function generateCustomVoiceRoast(
@@ -588,11 +593,15 @@ export async function generateCustomVoiceRoast(
   voice: VoicePersonalityProfile,
   fallbackJoke?: string
 ): Promise<string> {
+  const language = await getVoiceLanguage();
+  const fallback = () => language === 'it' && !isNeapolitanVoice(voice.id) && fallbackJoke
+    ? cleanSpokenText(fallbackJoke)
+    : coachFallback('food', language, voice.id, { food: foodName, calories });
   const envGeminiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
   const apiKey = envGeminiKey && envGeminiKey !== 'YOUR_GEMINI_API_KEY' ? envGeminiKey : '';
 
   if (!apiKey) {
-    return fallbackJoke || `Analisi calorica completata... ${calories} calorie registrate per ${foodName}. Procediamo!`;
+    return fallback();
   }
 
   const isNonFood = calories === 0;
@@ -612,8 +621,7 @@ ${targetDesc}
 REGOLE CRITICHE:
 1. ZERO BODY SHAMING: ironizza solo sull'oggetto/pietanza, MAI sul corpo dell'utente.
 2. Esprimi appieno il tuo timbro e carattere specifico in prima persona.
-3. Inserisci puntini di sospensione '...' per creare la pausa scenica/respiro per la sintesi vocale.
-4. Rispondi UNICAMENTE con la battuta in lingua italiana. Nessun commento prima o dopo, niente virgolette esterne.`;
+${spokenTextRules(voice.id, language)}`;
 
   const endpointsToTry = [
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`,
@@ -659,12 +667,12 @@ REGOLE CRITICHE:
         let clean = rawText
           .replace(/\*[^*]+\*/g, '')
           .replace(/\([^)]+\)/g, '')
-          .replace(/^["'«\s]+/, '')
-          .replace(/["'»\s]+$/, '')
+          .replace(/^["«\s]+/, '')
+          .replace(/["»\s]+$/, '')
           .trim();
 
         if (clean.length > 5) {
-          return clean;
+          return cleanSpokenText(clean);
         }
       }
     } catch {
@@ -672,6 +680,6 @@ REGOLE CRITICHE:
     }
   }
 
-  return fallbackJoke || `Calcolo completato per ${foodName}... ${calories} calorie sotto osservazione!`;
+  return fallback();
 }
 
