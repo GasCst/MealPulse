@@ -74,7 +74,9 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 - **60 FPS Animations**: Powered by **React Native Reanimated v4**.
 
 ### 🔘 Button Sounds & Loading Feedback
-- **Soft tap feedback**: App-owned buttons, navigation controls and switches share a quiet, original 95 ms pop sound. The WAV is bundled locally and preloaded once, so a tap does not wait for a network request.
+- **Action-aware sound feedback**: App-owned buttons use 16 original local cues. Quantity increases/decreases and selections use short, quiet ticks; saving portions and finishing use different melodic confirmations. Navigation, opening/closing panels, scans, voice playback, major actions, rewards and switch states each have their own cue.
+- **Consistent across languages**: Each button declares its action sound explicitly; changing the interface language does not change its assigned sound.
+- **Instant local playback**: WAVs are preloaded in a shared player pool. Rapid taps replace the previous UI sound instead of stacking chimes. Button sounds never stop the TTS player or change its audio mode. See the [sound palette](assets/sounds/README.md).
 - **Optional sound**: Toggle **Button sounds / Suoni dei pulsanti** in Menu PRO. The preference is saved on the device.
 - **Voice preparation**: Briefing, hydration coach, daily recap, celebrations, voice previews and meal roasts show a spinner while preparing text, generating speech, downloading the WAV and starting the player. New labels follow the selected language.
 - **Scoped playback**: Each voice feature shows its own loading/playback state. Repeated generation taps are blocked; cancelled server requests cannot start stale audio or device-speech fallback.
@@ -249,7 +251,7 @@ cd android && ./gradlew bundleRelease
 The output bundle will be located at:
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-The button-feedback release is **2.5.6**, Android version code **116**. Keep
+The action-sound release is **2.5.7**, Android version code **117**. Keep
 `app.json` and `android/app/build.gradle` versions synchronized before the next build.
 
 ---
@@ -270,7 +272,8 @@ changed Mac addresses, concurrent lookups and offline fallbacks. Live voice
 verification checks transport and voice provenance; perceived naturalness still
 requires listening.
 
-The UI feedback suite checks button coverage, disabled controls, mute persistence,
+The UI feedback suite checks button coverage, action categories, disabled controls, mute persistence,
+distinct audio assets, rapid-tap handling and player cleanup, as well as
 voice loading through WAV download/player setup, request cancellation and stale
 playback callbacks. Listen to the tap sound and test TTS on a physical phone using
 the Google Play internal testing track before promoting a release.
