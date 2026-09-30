@@ -17,7 +17,7 @@ export const TouchableOpacity = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound, event);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativeTouchableOpacity {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;
@@ -30,7 +30,7 @@ export const Pressable = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound, event);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativePressable {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;
@@ -43,7 +43,7 @@ export const TouchableHighlight = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound, event);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativeTouchableHighlight {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;
@@ -56,7 +56,7 @@ export const TouchableWithoutFeedback = forwardRef<
 >(({ onPress, disabled, sound = true, ...props }, ref) => {
   const handlePress = useCallback<NonNullable<typeof onPress>>((event) => {
     if (disabled) return;
-    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound);
+    if (sound) buttonSoundService.play(sound === true ? 'tap' : sound, event);
     onPress?.(event);
   }, [disabled, onPress, sound]);
   return <NativeTouchableWithoutFeedback {...props} ref={ref} disabled={disabled} onPress={onPress ? handlePress : undefined} />;

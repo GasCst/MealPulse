@@ -25,9 +25,18 @@ and quiet; important actions use longer melodic cues at a moderately higher volu
 
 Buttons declare their cue through the shared FeedbackPressable wrappers; switches
 choose their on/off cue from the new value. Labels/translations are not inspected
-to guess an action. Disabled buttons stay silent. The pool preloads in batches,
-throttles duplicate nested taps and replaces previous UI cues on rapid presses.
-It does not stop TTS playback or change the shared audio mode.
+to guess an action. Disabled buttons stay silent. Only the same native press event
+is deduplicated when it bubbles through nested controls; distinct rapid touches
+are retained, including touches made while their sample loads. Different categories
+finish naturally instead of stopping each other's confirmations.
+
+Android uses a native SoundPool with eight short-sample streams. Metro's bundled
+raw WAV resources are kept uncompressed for direct loading; no network is needed.
+The pool uses media volume without requesting audio focus. iOS, web, Expo Go and
+development builds without packaged raw resources use Expo players, with commands
+serialized per category. A failed playback is retried, recreating a failed Expo
+player or falling back from the native pool. Muting/releasing cancels pending cues.
+Neither backend stops TTS playback or changes the shared audio mode.
 
 Users can mute every category in Menu PRO; the existing preference is preserved.
 These cues indicate the pressed action, not proof that a remote operation succeeded.
