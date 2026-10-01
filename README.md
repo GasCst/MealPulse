@@ -9,7 +9,7 @@
 
 **MealPulse AI** is a cutting-edge mobile nutrition and calorie tracking platform built with **React Native (Expo SDK 54, React Native New Architecture)** and powered by **Google Gemini 2.5/2.0 Flash Vision AI**, **OpenAI GPT-4o-mini**, and a local **Apple Silicon Qwen3-TTS/MLX voice cloning engine with compatible XTTS-v2 speakers**.
 
-Snap a photo of any food plate or fruit, automatically count individual items (e.g., 5 walnuts, 3 eggs), estimate volumetric portion weights in grams, calculate precise macronutrients (calories, protein, carbs, fat), receive humorous voice roasts & coaching from customizable AI personalities, track intermittent fasting & daily hydration, synchronize real-time active calories & steps with **Apple Health** and **Google Health Connect**, and persist everything securely to **Supabase Cloud**.
+Snap a photo of any food plate or fruit, automatically count individual items (e.g., 5 walnuts, 3 eggs), estimate volumetric portion weights in grams, estimate macronutrients (calories, protein, carbs, fat), receive humorous voice roasts & coaching from customizable AI personalities, track intermittent fasting & daily hydration, synchronize real-time active calories & steps with **Apple Health** and **Google Health Connect**, and save meal totals to **Supabase Cloud**.
 
 ---
 
@@ -21,6 +21,21 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 - **Granular Itemization**: Automatically detects dish names, breaks down individual ingredients, counts discrete items (nuts, eggs, slices), and estimates volumetric gram weights.
 - **Macronutrient Breakdown**: Delivers instant calorie totals, protein, carbohydrate, and fat distributions.
 - **Playful Non-Food Detection**: Recognizes non-edible objects with humorous AI roasts and zero-calorie safe fallbacks.
+
+### 🏷️ Food data, label corrections & nutrient provenance
+
+All Open Food Facts search and barcode results pass through the same normalizer and numerical checks. This fixes the interpretation of dataset values; it does **not** certify that every community entry matches every package currently sold.
+
+- **Consistent basis**: prefer normalized `*_100g` fields; convert serving-only values only when the serving explicitly gives grams or millilitres. Package size and contributor `*_value` fields are never treated as per-100 values. Liquids retain ml; there is no assumed gram/ml density conversion. Decimal macro values are preserved.
+- **Correct units**: OFF normalized nutrient values are grams, even when `*_unit` describes a contributor's mg/µg input. Convert minerals and vitamin C to mg, B12/A to µg, and vitamin D to IU internally (shown and entered as µg). Vitamin A is never converted to IU without knowing its form. Salt and sodium conversions follow the standard 2.5 ratio.
+- **Missing and conflicting data**: reject incomplete or impossible main nutrition data; flag energy conflicts, sugars above carbs, saturated fat above total fat, salt/sodium inconsistencies and OFF nutrition quality errors. Warnings are consistency checks, not independent laboratory verification. Declared zero remains zero. Missing vitamins/minerals stay unknown, displayed as `—`, and are not guessed from food names.
+- **Current product records**: before logging a selected OFF search result, resolve its exact barcode against the product API (bounded to three simultaneous lookups, with a five-minute cache). If required nutrition is unavailable, the selection remains open with an error instead of logging zeros or falling back to another product.
+- **Visible source**: distinguish OFF, generic-food estimates, AI estimates, manual entries and user-entered labels. OFF entries can expose the exact barcode, product page, label photo and record update date. A record update date does not establish a formulation's current accuracy.
+- **Label corrections for any food**: open a product's portion editor or a logged meal's details and choose **Correggi dall’etichetta / Correct from label**. Enter values per 100 g or 100 ml and the portion actually consumed. Optional nutrients can remain blank. Salt/sodium convert automatically; A/D/B12 use µg. Private corrections are remembered on that device for the exact barcode only. They never replace another variant by name or brand and do not write to the public OFF database.
+- **Voice/photo/manual input**: voice and plate recognition remain estimates; malformed responses no longer generate invented fallback calories/macros. Voice totals are computed from the parsed items, then shown in the selection list for review before logging. The manual form accepts decimal commas and uses an explicit 100g basis. Catalog, barcode and meal editing scale macros and known micronutrients once for the selected quantity.
+- **Older history and cloud scope**: existing meal calories/macros are preserved. Micronutrients saved before this fix may have been fabricated or converted incorrectly, so they remain unverified/unknown until corrected from a label. Main totals continue to sync to Supabase; extra nutrients, provenance and private barcode corrections currently remain in device storage. There is no claim of cross-device synchronization for those extra fields.
+
+Reference: [OFF nutrition schema](https://openfoodfacts.github.io/documentation/docs/Product-Opener/schemas/schemas/product_nutrition/) and [OFF data verification](https://support.openfoodfacts.org/help/en-gb/9-open-food-facts/29-is-the-information-and-data-on-products-verified). Exact package labels and quantities are required to resolve product variants, reformulations and cooked/raw differences.
 
 ### 🎙️ AI Voice Coach & Voice Cloning (Qwen3-TTS/MLX and XTTS-v2)
 - **5 Iconic Personality Characters**:
@@ -87,7 +102,7 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
 - **Fasting Protocols**: Supports 16:8, 18:6, 20:4, circadian rhythms, and custom windows with countdown timers, elapsed progress rings, and milestone notifications.
 
 ### ☁️ Full-Stack Supabase Cloud Persistence & Guest Migration
-- **100% Cloud Synchronization**: Real-time sync across `meal_logs`, `water_logs`, `user_biometrics`, `fasting_logs`, `user_habits`, `journal_entries`, `promo_events`, and `subscriptions`.
+- **Cloud Synchronization**: Real-time sync across `meal_logs`, `water_logs`, `user_biometrics`, `fasting_logs`, `user_habits`, `journal_entries`, `promo_events`, and `subscriptions`.
 - **Row Level Security (RLS)**: Strict PostgreSQL security rules ensuring users only access their own data (`auth.uid() = user_id`).
 - **Atomic Guest-to-Account Migration**: Full offline functionality for unauthenticated guests in `AsyncStorage`; upon sign-in or registration, all local logs are idempotently migrated to Supabase without duplicates.
 - **`signOutSafe` Concurrency Guard**: Flushes in-flight network writes before session teardown to prevent data loss.
@@ -251,7 +266,7 @@ cd android && ./gradlew bundleRelease
 The output bundle will be located at:
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-The live morning-briefing release is **2.5.9**, Android version code **119**. Keep
+The nutrition-data release is **2.5.10**, Android version code **120**. Keep
 `app.json` and `android/app/build.gradle` versions synchronized before the next build.
 
 ---
@@ -265,7 +280,10 @@ venv_mlx_tts/bin/python -m unittest discover -s tools -p 'test_tts*.py'
 node --test tools/test_remote_config.cjs
 node --test tools/test_ui_feedback.cjs
 node --test tools/test_morning_briefing.cjs
+node --test tools/test_nutrition_data.cjs
 ```
+
+The nutrition suite covers serving/100g conversion, g/mg/µg/IU units, declared zero versus missing values, liquid volumes, quality flags, portion re-editing, barcode-specific label corrections, and malformed photo/voice responses.
 
 The Python suite covers routing, voice aliases, WAV format, cache invalidation,
 number pronunciation and dialect rewrite guards. The JavaScript tests cover
