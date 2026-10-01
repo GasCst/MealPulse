@@ -1,3 +1,4 @@
+import { nutritionNumber, plausibleMacros } from './nutritionData';
 import { cleanSpokenText, coachFallback, getVoiceLanguage, isNeapolitanVoice, spokenTextRules } from '@/services/voiceTextStyle';
 
 /**
@@ -52,6 +53,36 @@ export interface VoiceMealParsedResult {
   items: VoiceMealItem[];
 }
 
+function requiredNutrition(value: unknown): number {
+  const parsed = nutritionNumber(value);
+  if (parsed === undefined) throw new Error('Incomplete nutrition response. Try again or enter label values manually.');
+  return parsed;
+}
+
+function validatePortionMacros(calories: number, proteinG: number, carbsG: number, fatG: number, weight: number) {
+  if (weight <= 0 || !plausibleMacros({ calories: calories * 100 / weight, proteinG: proteinG * 100 / weight, carbsG: carbsG * 100 / weight, fatG: fatG * 100 / weight }, 'g')) {
+    throw new Error('Invalid nutrition response for portion weight. Try again or enter label values manually.');
+  }
+}
+
+function normalizeVoiceResult(parsed: any): VoiceMealParsedResult {
+  const items: VoiceMealItem[] = parsed.items.map((it: any) => {
+    const weight = requiredNutrition(it.weight_g);
+    if (weight <= 0) throw new Error('Invalid portion weight');
+    validatePortionMacros(requiredNutrition(it.calories), requiredNutrition(it.protein_g), requiredNutrition(it.carbs_g), requiredNutrition(it.fat_g), weight);
+    return {
+      name: it.name || 'Alimento', portion: it.portion || `${weight}g`, weight_g: weight,
+      calories: Math.round(requiredNutrition(it.calories)), protein_g: Math.round(requiredNutrition(it.protein_g) * 10) / 10,
+      carbs_g: Math.round(requiredNutrition(it.carbs_g) * 10) / 10, fat_g: Math.round(requiredNutrition(it.fat_g) * 10) / 10,
+      emoji: it.emoji || '🍽️',
+    };
+  });
+  // Summing the actual items avoids a second, inconsistent AI-generated total.
+  const sum = (field: 'calories' | 'protein_g' | 'carbs_g' | 'fat_g') => Math.round(items.reduce((total, item) => total + item[field], 0) * 10) / 10;
+  return { meal_title: parsed.meal_title || 'Pasto', speech_transcription: parsed.speech_transcription,
+    items, total_calories: Math.round(sum('calories')), total_protein_g: sum('protein_g'), total_carbs_g: sum('carbs_g'), total_fat_g: sum('fat_g') };
+}
+
 /**
  * Ultra-resilient JSON parser with regex extraction fallbacks
  */
@@ -95,10 +126,11 @@ function safeParseMealResult(rawText: string, defaultName: string = 'Scanned Mea
       };
     }
 
-    const estWeight = Math.round(
-      parsed.estimated_weight_g ||
-      (parsed.item_count && parsed.unit_weight_g ? parsed.item_count * parsed.unit_weight_g : 180)
-    );
+    const estWeight = Math.round(requiredNutrition(
+      parsed.estimated_weight_g ??
+      (parsed.item_count && parsed.unit_weight_g ? parsed.item_count * parsed.unit_weight_g : undefined)
+    ));
+    validatePortionMacros(requiredNutrition(parsed.calories), requiredNutrition(parsed.protein_g), requiredNutrition(parsed.carbs_g), requiredNutrition(parsed.fat_g), estWeight);
 
     let score: 'A' | 'B' | 'C' | 'D' = 'B';
     if (typeof parsed.health_score === 'string') {
@@ -126,14 +158,14 @@ function safeParseMealResult(rawText: string, defaultName: string = 'Scanned Mea
 
     return {
       food_name: parsed.food_name || defaultName,
-      estimated_weight_g: estWeight > 0 ? estWeight : 180,
+      estimated_weight_g: estWeight,
       item_count: parsed.item_count || 1,
       unit_weight_g: parsed.unit_weight_g || estWeight,
-      calories: Math.max(0, Math.round(parsed.calories || 250)),
-      protein_g: Math.max(0, Math.round((parsed.protein_g ?? 12) * 10) / 10),
-      carbs_g: Math.max(0, Math.round((parsed.carbs_g ?? 25) * 10) / 10),
-      fat_g: Math.max(0, Math.round((parsed.fat_g ?? 8) * 10) / 10),
-      confidence: parsed.confidence || 0.95,
+      calories: Math.max(0, Math.round(requiredNutrition(parsed.calories))),
+      protein_g: Math.max(0, Math.round((requiredNutrition(parsed.protein_g)) * 10) / 10),
+      carbs_g: Math.max(0, Math.round((requiredNutrition(parsed.carbs_g)) * 10) / 10),
+      fat_g: Math.max(0, Math.round((requiredNutrition(parsed.fat_g)) * 10) / 10),
+      confidence: Math.min(1, nutritionNumber(parsed.confidence) ?? 0),
       health_score: score,
       insights: insightsText,
       roast_speech: defaultRoast,
@@ -153,11 +185,12 @@ function safeParseMealResult(rawText: string, defaultName: string = 'Scanned Mea
     };
 
     const extractedName = extractStr('food_name', defaultName);
-    const extractedCal = Math.round(extractNum('calories', 280));
-    const extractedProtein = Math.round(extractNum('protein_g', 15) * 10) / 10;
-    const extractedCarbs = Math.round(extractNum('carbs_g', 30) * 10) / 10;
-    const extractedFat = Math.round(extractNum('fat_g', 10) * 10) / 10;
-    const extractedWeight = Math.round(extractNum('estimated_weight_g', 180));
+    const extractedCal = Math.round(requiredNutrition(extractNum('calories', NaN)));
+    const extractedProtein = Math.round(requiredNutrition(extractNum('protein_g', NaN)) * 10) / 10;
+    const extractedCarbs = Math.round(requiredNutrition(extractNum('carbs_g', NaN)) * 10) / 10;
+    const extractedFat = Math.round(requiredNutrition(extractNum('fat_g', NaN)) * 10) / 10;
+    const extractedWeight = Math.round(requiredNutrition(extractNum('estimated_weight_g', NaN)));
+    validatePortionMacros(extractedCal, extractedProtein, extractedCarbs, extractedFat, extractedWeight);
     const extractedInsights = extractStr('insights', 'Piatto bilanciato e nutriente.');
     const extractedRoast = extractStr('roast_speech', '');
 
@@ -170,7 +203,7 @@ function safeParseMealResult(rawText: string, defaultName: string = 'Scanned Mea
       protein_g: extractedProtein,
       carbs_g: extractedCarbs,
       fat_g: extractedFat,
-      confidence: 0.9,
+      confidence: 0,
       health_score: 'B',
       insights: extractedInsights,
       roast_speech: extractedRoast || undefined,
@@ -189,7 +222,7 @@ function safeParseMealResult(rawText: string, defaultName: string = 'Scanned Mea
  * Fast Google Gemini Vision API Call
  */
 async function callGeminiVisionAPI(base64Data: string, apiKey: string): Promise<MealVisionResult> {
-  const prompt = `Analyze this food image. Return ONLY valid JSON in this exact structure:
+  const prompt = `Analyze this food image. Nutrition is an estimate for the pictured portion, not a verified database lookup. Preserve decimal grams, never invent fixed fallback macros, and distinguish cooked from raw ingredients. Do not claim vitamins or minerals that are not on a readable label. Return ONLY valid JSON in this exact structure:
 {
   "food_name": "Nome del piatto identificato (string)",
   "estimated_weight_g": 180,
@@ -335,7 +368,7 @@ export async function parseMealFromVoiceText(
   const apiKey = inAppKey || envGeminiKey || '';
   if (!apiKey) throw new Error('Configura una chiave Gemini nelle impostazioni o nel file .env.');
 
-  const prompt = `You are an expert AI nutritionist. Convert the user's spoken meal description into a structured list of foods with accurate portion weights (in grams), calories, and macronutrients (protein, carbs, fat), plus a suitable emoji for each item.
+  const prompt = `You are an expert AI nutritionist. Nutrition values are estimates, not verified product facts. Preserve decimal grams, distinguish raw from cooked food, and never invent fixed fallback values. Convert the user's spoken meal description into a structured list of foods with accurate portion weights (in grams), calories, and macronutrients (protein, carbs, fat), plus a suitable emoji for each item.
 Language: Italian / Multilingual.
 
 User Spoken Description: "${cleanText}"
@@ -404,23 +437,7 @@ Return ONLY valid JSON in this exact structure:
 
         const parsed: VoiceMealParsedResult = JSON.parse(rawText);
         if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-          return {
-            meal_title: parsed.meal_title || 'Pasto Rilevato',
-            total_calories: Math.round(parsed.total_calories || parsed.items.reduce((acc, i) => acc + (i.calories || 0), 0)),
-            total_protein_g: Math.round((parsed.total_protein_g || parsed.items.reduce((acc, i) => acc + (i.protein_g || 0), 0)) * 10) / 10,
-            total_carbs_g: Math.round((parsed.total_carbs_g || parsed.items.reduce((acc, i) => acc + (i.carbs_g || 0), 0)) * 10) / 10,
-            total_fat_g: Math.round((parsed.total_fat_g || parsed.items.reduce((acc, i) => acc + (i.fat_g || 0), 0)) * 10) / 10,
-            items: parsed.items.map((it) => ({
-              name: it.name || 'Alimento',
-              portion: it.portion || `${it.weight_g || 100}g`,
-              weight_g: Math.round(it.weight_g || 100),
-              calories: Math.round(it.calories || 0),
-              protein_g: Math.round((it.protein_g || 0) * 10) / 10,
-              carbs_g: Math.round((it.carbs_g || 0) * 10) / 10,
-              fat_g: Math.round((it.fat_g || 0) * 10) / 10,
-              emoji: it.emoji || '🍽️',
-            })),
-          };
+          return normalizeVoiceResult(parsed);
         }
       } else if (data.error) {
         lastError = data.error.message || JSON.stringify(data.error);
@@ -452,7 +469,7 @@ export async function parseMealFromAudioBase64(
   const apiKey = inAppKey || envGeminiKey || '';
   if (!apiKey) throw new Error('Configura una chiave Gemini nelle impostazioni o nel file .env.');
 
-  const prompt = `You are an expert AI speech-to-nutrition recognizer. Listen to the user's spoken meal audio carefully.
+  const prompt = `You are an expert AI speech-to-nutrition recognizer. Listen to the user's spoken meal audio carefully. Nutrition values are estimates, not verified product facts. Preserve decimal grams, distinguish raw from cooked food, and never invent fixed fallback values.
 1. Transcribe the user's spoken words accurately (in Italian or the spoken language).
 2. Identify all foods mentioned, estimate their weight in grams, and calculate their calories and macronutrients (protein, carbs, fat).
 3. Assign a matching emoji for each food item.
@@ -542,24 +559,7 @@ Return ONLY valid JSON in this exact structure:
         }
 
         if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
-          return {
-            speech_transcription: parsed.speech_transcription || '',
-            meal_title: parsed.meal_title || 'Pasto Vocale Riconosciuto',
-            total_calories: Math.round(parsed.total_calories || parsed.items.reduce((acc: number, i: any) => acc + (i.calories || 0), 0)),
-            total_protein_g: Math.round((parsed.total_protein_g || parsed.items.reduce((acc: number, i: any) => acc + (i.protein_g || 0), 0)) * 10) / 10,
-            total_carbs_g: Math.round((parsed.total_carbs_g || parsed.items.reduce((acc: number, i: any) => acc + (i.carbs_g || 0), 0)) * 10) / 10,
-            total_fat_g: Math.round((parsed.total_fat_g || parsed.items.reduce((acc: number, i: any) => acc + (i.fat_g || 0), 0)) * 10) / 10,
-            items: parsed.items.map((it: any) => ({
-              name: it.name || 'Alimento',
-              portion: it.portion || `${it.weight_g || 100}g`,
-              weight_g: Math.round(it.weight_g || 100),
-              calories: Math.round(it.calories || 0),
-              protein_g: Math.round((it.protein_g || 0) * 10) / 10,
-              carbs_g: Math.round((it.carbs_g || 0) * 10) / 10,
-              fat_g: Math.round((it.fat_g || 0) * 10) / 10,
-              emoji: it.emoji || '🍽️',
-            })),
-          };
+          return normalizeVoiceResult(parsed);
         }
       } else if (data.error) {
         lastError = data.error.message || JSON.stringify(data.error);

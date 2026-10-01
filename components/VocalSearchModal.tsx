@@ -1,3 +1,4 @@
+import { NutritionSourcePanel } from './NutritionSourcePanel';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Animated, Platform } from 'react-native';
@@ -312,6 +313,7 @@ export const VocalSearchModal: React.FC<VocalSearchModalProps> = ({
             </TouchableOpacity>
           </View>
 
+          <NutritionSourcePanel info={{ version: 1, source: 'ai_estimate', referenceUnit: 'g' }} />
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
             {/* Animated Mic Section */}
             <View style={styles.micSection}>

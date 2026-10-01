@@ -1,3 +1,5 @@
+import { NutritionSourcePanel } from './NutritionSourcePanel';
+import { NutritionInfo, MacroValues, ExtraNutrients, scaleExtras } from '@/services/nutritionData';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, Image, ScrollView, StyleSheet, SafeAreaView, Platform, ActivityIndicator, Animated as RNAnimated } from 'react-native';
@@ -23,7 +25,8 @@ export interface CharacterRoasts {
   if_sara?: string;
 }
 
-export interface ScannedNutritionData {
+export interface ScannedNutritionData extends ExtraNutrients {
+  nutrition?: NutritionInfo;
   food_name: string;
   calories: number;
   protein_g: number;
@@ -141,6 +144,9 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
   const { colors, isDarkMode } = useTheme();
   const { t, language } = useLanguage();
   const { isPro, openPaywall } = useSubscription();
+  const [labelValues, setLabelValues] = useState<(MacroValues & ExtraNutrients) | null>(null);
+  const [nutrition, setNutrition] = useState<NutritionInfo>({ version: 1, source: 'ai_estimate', referenceUnit: 'g' });
+  useEffect(() => { setLabelValues(null); setServingMultiplier(1); setNutrition({ version: 1, source: 'ai_estimate', referenceUnit: 'g' }); }, [data, visible]);
   const [servingMultiplier, setServingMultiplier] = useState<number>(1.0);
 
   // Image error fallback
@@ -689,11 +695,11 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
 
   if (!data) return null;
 
-  const currentCalories = Math.round(data.calories * servingMultiplier);
-  const currentProtein = Math.round(data.protein_g * servingMultiplier);
-  const currentCarbs = Math.round(data.carbs_g * servingMultiplier);
-  const currentFat = Math.round(data.fat_g * servingMultiplier);
   const currentWeight = Math.round((data.estimated_weight_g || 100) * servingMultiplier);
+  const currentCalories = Math.round(labelValues ? labelValues.calories * currentWeight / 100 : data.calories * servingMultiplier);
+  const currentProtein = Math.round((labelValues ? labelValues.proteinG * currentWeight / 100 : data.protein_g * servingMultiplier) * 10) / 10;
+  const currentCarbs = Math.round((labelValues ? labelValues.carbsG * currentWeight / 100 : data.carbs_g * servingMultiplier) * 10) / 10;
+  const currentFat = Math.round((labelValues ? labelValues.fatG * currentWeight / 100 : data.fat_g * servingMultiplier) * 10) / 10;
 
   const healthScore = data.health_score || (data.protein_g > 15 && data.fat_g < 15 ? 'A' : data.fat_g > 20 ? 'C' : 'B');
 
@@ -710,7 +716,7 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
   const getScoreDescription = (score: string) => {
     switch (score) {
       case 'A':
-        return 'Super nutriente, ricco di proteine magre e vitamine con grassi minimi.';
+        return 'Super nutriente, con un buon apporto stimato di proteine.';
       case 'B':
         return 'Sano e bilanciato. Ottimo apporto energetico e macronutrienti stabili.';
       case 'C':
@@ -725,6 +731,8 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
   const handleConfirm = () => {
     onConfirm({
       ...data,
+      ...scaleExtras(labelValues || {}, currentWeight / 100),
+      nutrition,
       calories: currentCalories,
       protein_g: currentProtein,
       carbs_g: currentCarbs,
@@ -818,6 +826,8 @@ export const AINutritionResultModal: React.FC<AINutritionResultModalProps> = ({
               )}
             </View>
           </View>
+
+          <NutritionSourcePanel info={nutrition} values={labelValues || { calories: data.calories * 100 / (data.estimated_weight_g || 100), proteinG: data.protein_g * 100 / (data.estimated_weight_g || 100), carbsG: data.carbs_g * 100 / (data.estimated_weight_g || 100), fatG: data.fat_g * 100 / (data.estimated_weight_g || 100) }} onCorrect={(values, info) => { setLabelValues(values); setNutrition(info); }} />
 
           {/* CHEF ROAST CARD (Kokoro-82M Comedy Personalities) */}
           {currentRoastText ? (

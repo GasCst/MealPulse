@@ -1,6 +1,8 @@
+import { getLocalizedPopularFoods } from '@/services/foodDatabaseService';
+import { NutritionInfo, nutritionNumber } from '@/services/nutritionData';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState } from 'react';
-import { Modal, View, Text, StyleSheet, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, StyleSheet, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -14,31 +16,19 @@ interface FoodItem {
   fat: number;
   serving: string;
   category: string;
+  weightG: number;
+  nutrition?: NutritionInfo;
 }
 
-const LOCAL_FOOD_DB: FoodItem[] = [
-  { id: '1', name: 'Chicken Breast (Grilled)', nameIt: 'Petto di Pollo alla Griglia', calories: 165, protein: 31, carbs: 0, fat: 3.6, serving: '100g', category: '🥩 Proteine' },
-  { id: '2', name: 'White Rice (Cooked)', nameIt: 'Riso Bianco Cotto', calories: 130, protein: 2.7, carbs: 28, fat: 0.3, serving: '100g', category: '🌾 Carboidrati' },
-  { id: '3', name: 'Pasta with Tomato Sauce', nameIt: 'Pasta al Pomodoro', calories: 158, protein: 5.5, carbs: 31, fat: 1.2, serving: '100g', category: '🍝 Pasta & Primi' },
-  { id: '4', name: 'Egg (Whole, Boiled)', nameIt: 'Uovo Sodo Grande', calories: 78, protein: 6.3, carbs: 0.6, fat: 5.3, serving: '1 uovo (50g)', category: '🥚 Uova & Latticini' },
-  { id: '5', name: 'Greek Yogurt 0%', nameIt: 'Yogurt Greco 0% Grassi', calories: 59, protein: 10, carbs: 3.6, fat: 0.4, serving: '100g', category: '🥛 Latticini' },
-  { id: '6', name: 'Pizza Margherita', nameIt: 'Pizza Margherita (Fetta)', calories: 250, protein: 10, carbs: 32, fat: 9, serving: '1 fetta (100g)', category: '🍕 Fast Food' },
-  { id: '7', name: 'Apple (Fresh)', nameIt: 'Mela Fresca', calories: 52, protein: 0.3, carbs: 14, fat: 0.2, serving: '1 mela media (150g)', category: '🍎 Frutta' },
-  { id: '8', name: 'Salmon Fillet (Baked)', nameIt: 'Filetto di Salmone al Forno', calories: 206, protein: 22, carbs: 0, fat: 13, serving: '100g', category: '🐟 Pesce' },
-  { id: '9', name: 'Extra Virgin Olive Oil', nameIt: 'Olio Extravergine d\'Oliva', calories: 119, protein: 0, carbs: 0, fat: 13.5, serving: '1 cucchiaio (13ml)', category: '🥑 Grassi Sani' },
-  { id: '10', name: 'Banana', nameIt: 'Banana Fresca', calories: 89, protein: 1.1, carbs: 23, fat: 0.3, serving: '1 banana media (118g)', category: '🍌 Frutta' },
-  { id: '11', name: 'Oats / Oatmeal', nameIt: 'Fiocchi d\'Avena', calories: 389, protein: 16.9, carbs: 66, fat: 6.9, serving: '100g', category: '🥣 Colazione' },
-  { id: '12', name: 'Almonds', nameIt: 'Mandorle Tostate', calories: 579, protein: 21, carbs: 22, fat: 49, serving: '30g (manciata)', category: '🥜 Frutta Secca' },
-  { id: '13', name: 'Avocado', nameIt: 'Avocado Fresco', calories: 160, protein: 2, carbs: 8.5, fat: 15, serving: '1/2 avocado (100g)', category: '🥑 Grassi Sani' },
-  { id: '14', name: 'Mozzarella di Bufala', nameIt: 'Mozzarella di Bufala', calories: 280, protein: 16, carbs: 1.5, fat: 23, serving: '100g', category: '🧀 Formaggi' },
-  { id: '15', name: 'Protein Shake (Whey)', nameIt: 'Shake Proteico Whey', calories: 120, protein: 24, carbs: 2, fat: 1.5, serving: '1 misurino (30g)', category: '💪 Integratori' },
-  { id: '16', name: 'Espresso Coffee', nameIt: 'Caffè Espresso (senza zucchero)', calories: 2, protein: 0.1, carbs: 0, fat: 0, serving: '1 tazzina', category: '☕ Bevande' },
-];
+export interface ManualMealInput {
+  name: string; calories: number; protein: number; carbs: number; fat: number;
+  weightG?: number; portion?: string; nutrition?: NutritionInfo;
+}
 
 interface ManualMealModalProps {
   visible: boolean;
   onClose: () => void;
-  onMealAdded: (meal: { name: string; calories: number; protein: number; carbs: number; fat: number }) => void;
+  onMealAdded: (meal: ManualMealInput) => void;
 }
 
 export const ManualMealModal: React.FC<ManualMealModalProps> = ({
@@ -46,7 +36,8 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
   onClose,
   onMealAdded,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const LOCAL_FOOD_DB: FoodItem[] = getLocalizedPopularFoods(language).map(food => ({ id: food.id, name: food.name, nameIt: food.name, calories: food.calories, protein: food.proteinG, carbs: food.carbsG, fat: food.fatG, serving: food.portion, category: food.category || 'snack', weightG: food.weightG, nutrition: food.nutrition }));
   const [activeTab, setActiveTab] = useState<'search' | 'custom'>('search');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -67,6 +58,9 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
   const handleSelectFood = (item: FoodItem) => {
     onMealAdded({
       name: item.nameIt,
+      weightG: item.weightG,
+      portion: item.serving,
+      nutrition: item.nutrition,
       calories: item.calories,
       protein: item.protein,
       carbs: item.carbs,
@@ -77,13 +71,15 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
 
   const handleAddCustom = () => {
     if (!customName.trim()) return;
-    const kcal = parseInt(customCalories, 10) || 0;
-    const p = parseFloat(customProtein) || 0;
-    const c = parseFloat(customCarbs) || 0;
-    const f = parseFloat(customFat) || 0;
+    const kcal = nutritionNumber(customCalories), p = nutritionNumber(customProtein), c = nutritionNumber(customCarbs), f = nutritionNumber(customFat);
+    if (kcal === undefined || p === undefined || c === undefined || f === undefined) {
+      Alert.alert(t('error'), t('nutrition_invalid')); return;
+    }
 
     onMealAdded({
       name: customName.trim(),
+      weightG: 100, portion: '100 g',
+      nutrition: { version: 1, source: 'manual', referenceUnit: 'g' },
       calories: kcal,
       protein: p,
       carbs: c,
@@ -112,6 +108,8 @@ export const ManualMealModal: React.FC<ManualMealModalProps> = ({
               <Ionicons name="close" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
+
+          <Text style={{ color: '#64748B', marginBottom: 8 }}>{activeTab === 'custom' ? `${t('nutrition_per_100')} g` : t('nutrition_source_local_estimate')}</Text>
 
           {/* Segmented Tabs */}
           <View style={styles.tabBar}>

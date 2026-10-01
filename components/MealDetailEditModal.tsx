@@ -1,3 +1,7 @@
+import * as Haptics from 'expo-haptics';
+import { DeleteConfirmModal } from '@/components/DeleteConfirmModal';
+import { NutritionSourcePanel } from './NutritionSourcePanel';
+import { NutritionInfo, ExtraNutrients, scaleExtras, nutritionNumber } from '@/services/nutritionData';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, ScrollView, StyleSheet, Image, Alert, KeyboardAvoidingView, Platform } from 'react-native';
@@ -5,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { LoggedMeal } from '@/app/(tabs)/index';
-import { NutritionDetailsService, DetailedNutrients } from '@/services/nutritionDetailsService';
+import { NutritionDetailsService, DetailedNutrients, mealFieldsToExtras, extrasToMealFields } from '@/services/nutritionDetailsService';
 
 interface MealDetailEditModalProps {
   visible: boolean;
@@ -15,8 +19,6 @@ interface MealDetailEditModalProps {
   onDelete: (mealId: string) => void;
 }
 
-import * as Haptics from 'expo-haptics';
-import { DeleteConfirmModal } from '@/components/DeleteConfirmModal';
 
 export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
   visible,
@@ -38,7 +40,8 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
   const [baseProtein, setBaseProtein] = useState(0);
   const [baseCarbs, setBaseCarbs] = useState(0);
   const [baseFat, setBaseFat] = useState(0);
-  const [portionText, setPortionText] = useState('');
+  const [nutrition, setNutrition] = useState<NutritionInfo | undefined>();
+  const [extraSource, setExtraSource] = useState<{ values: ExtraNutrients; weight: number }>({ values: {}, weight: 100 });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -66,30 +69,23 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
       // 2. Standard base reference weight (100g standard)
       const bWeight = meal.baseWeightG && meal.baseWeightG > 0 ? meal.baseWeightG : 100;
 
+      setNutrition(meal.nutrition);
+      setExtraSource({ values: mealFieldsToExtras(meal), weight: curWeight });
       setWeightG(curWeight);
       setWeightInput(String(curWeight));
       setBaseWeightG(bWeight);
 
-      // 3. Base macro calculation (normalize to baseWeightG, e.g. 100g)
-      let bCal = meal.baseCalories;
-      let bProt = meal.baseProtein;
-      let bCarb = meal.baseCarbs;
-      let bFat = meal.baseFat;
-
-      // If base macros per 100g are not provided, calculate rate per bWeight (100g)
-      if (bCal === undefined || bCal <= 0) {
-        const ratio = curWeight > 0 ? bWeight / curWeight : 1;
-        bCal = Math.round((meal.calories || 0) * ratio);
-        bProt = Math.round((meal.protein || 0) * ratio * 10) / 10;
-        bCarb = Math.round((meal.carbs || 0) * ratio * 10) / 10;
-        bFat = Math.round((meal.fat || 0) * ratio * 10) / 10;
-      }
+      // Preserve each known base independently, including declared zero.
+      const ratio = bWeight / curWeight;
+      const bCal = meal.baseCalories ?? Math.round(meal.calories * ratio);
+      const bProt = meal.baseProtein ?? meal.protein * ratio;
+      const bCarb = meal.baseCarbs ?? meal.carbs * ratio;
+      const bFat = meal.baseFat ?? meal.fat * ratio;
 
       setBaseCalories(bCal);
       setBaseProtein(bProt ?? 0);
       setBaseCarbs(bCarb ?? 0);
       setBaseFat(bFat ?? 0);
-      setPortionText(meal.portion || `${curWeight}g`);
     }
   }, [meal]);
 
@@ -110,19 +106,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
     carbs: currentCarbs,
     fat: currentFat,
     weightG,
-    fiber_g: meal.fiber_g !== undefined ? Math.round(meal.fiber_g * currentRatio * 10) / 10 : undefined,
-    sugar_g: meal.sugar_g !== undefined ? Math.round(meal.sugar_g * currentRatio * 10) / 10 : undefined,
-    saturated_fat_g: meal.saturated_fat_g !== undefined ? Math.round(meal.saturated_fat_g * currentRatio * 10) / 10 : undefined,
-    sodium_mg: meal.sodium_mg !== undefined ? Math.round(meal.sodium_mg * currentRatio) : undefined,
-    potassium_mg: meal.potassium_mg !== undefined ? Math.round(meal.potassium_mg * currentRatio) : undefined,
-    calcium_mg: meal.calcium_mg !== undefined ? Math.round(meal.calcium_mg * currentRatio) : undefined,
-    iron_mg: meal.iron_mg !== undefined ? Math.round(meal.iron_mg * currentRatio * 10) / 10 : undefined,
-    vitamin_c_mg: meal.vitamin_c_mg !== undefined ? Math.round(meal.vitamin_c_mg * currentRatio * 10) / 10 : undefined,
-    vitamin_d_iu: meal.vitamin_d_iu !== undefined ? Math.round(meal.vitamin_d_iu * currentRatio) : undefined,
-    vitamin_a_iu: meal.vitamin_a_iu !== undefined ? Math.round(meal.vitamin_a_iu * currentRatio) : undefined,
-    vitamin_b12_mcg: meal.vitamin_b12_mcg !== undefined ? Math.round(meal.vitamin_b12_mcg * currentRatio * 10) / 10 : undefined,
-    magnesium_mg: meal.magnesium_mg !== undefined ? Math.round(meal.magnesium_mg * currentRatio) : undefined,
-    zinc_mg: meal.zinc_mg !== undefined ? Math.round(meal.zinc_mg * currentRatio * 10) / 10 : undefined,
+    ...extrasToMealFields(scaleExtras(extraSource.values, weightG / extraSource.weight)),
   });
 
   const handleAdjustWeight = (delta: number) => {
@@ -136,9 +120,8 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
 
   const handleSetWeight = (text: string) => {
     setWeightInput(text);
-    const cleaned = text.replace(/[^0-9]/g, '');
-    const val = parseInt(cleaned, 10);
-    if (!isNaN(val) && val > 0) {
+    const val = nutritionNumber(text);
+    if (val !== undefined && val > 0) {
       setWeightG(Math.min(2500, val));
     }
   };
@@ -153,10 +136,11 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {}
 
-    const safeWeight = Math.max(1, weightG);
+    const safeWeight = Math.max(0.1, weightG);
 
     const updatedMeal: LoggedMeal = {
       ...meal,
+      nutrition,
       name: name.trim(),
       brand: brand.trim() || undefined,
       category,
@@ -170,7 +154,8 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
       baseProtein,
       baseCarbs,
       baseFat,
-      portion: `${safeWeight}g`,
+      portion: `${safeWeight} ${nutrition?.referenceUnit || 'g'}`,
+      salt_g: detailedNutrients.saltG,
       fiber_g: detailedNutrients.fiberG,
       sugar_g: detailedNutrients.sugarG,
       saturated_fat_g: detailedNutrients.saturatedFatG,
@@ -181,6 +166,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
       vitamin_c_mg: detailedNutrients.vitaminCMg,
       vitamin_d_iu: detailedNutrients.vitaminDIU,
       vitamin_a_iu: detailedNutrients.vitaminAIU,
+      vitamin_a_mcg: detailedNutrients.vitaminAMcg,
       vitamin_b12_mcg: detailedNutrients.vitaminB12Mcg,
       magnesium_mg: detailedNutrients.magnesiumMg,
       zinc_mg: detailedNutrients.zincMg,
@@ -198,6 +184,8 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
   const carbPct = totalMacroCal > 0 ? Math.round(((currentCarbs * 4) / totalMacroCal) * 100) : 33;
   const protPct = totalMacroCal > 0 ? Math.round(((currentProtein * 4) / totalMacroCal) * 100) : 33;
   const fatPct = totalMacroCal > 0 ? Math.max(0, 100 - carbPct - protPct) : 34;
+
+  const formatNutrient = (value: number | undefined, unit: string) => value === undefined ? '—' : `${value} ${unit}`;
 
   const categories = [
     { key: 'breakfast', label: t('meal_breakfast', 'Colazione'), emoji: '🥐' },
@@ -332,6 +320,11 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
               </View>
             </View>
 
+            <NutritionSourcePanel info={nutrition} values={{ ...scaleExtras(extraSource.values, 100 / extraSource.weight), calories: baseCalories * 100 / baseWeightG, proteinG: baseProtein * 100 / baseWeightG, carbsG: baseCarbs * 100 / baseWeightG, fatG: baseFat * 100 / baseWeightG }} onCorrect={(values, info) => {
+              setBaseWeightG(100); setBaseCalories(values.calories); setBaseProtein(values.proteinG); setBaseCarbs(values.carbsG); setBaseFat(values.fatG);
+              setExtraSource({ values, weight: 100 }); setNutrition(info);
+            }} />
+
             {/* 3. Weight & Portion Control */}
             <View style={[styles.weightBox, { backgroundColor: isDarkMode ? '#18271E' : '#F8FAFC', borderColor: isDarkMode ? '#243A2E' : '#E2E8F0' }]}>
               <View style={styles.weightHeaderRow}>
@@ -348,18 +341,18 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                 <View style={[styles.weightInputWrap, { backgroundColor: isDarkMode ? '#121F17' : '#FFFFFF', borderColor: colors.coral }]}>
                   <TextInput
                     style={[styles.weightInputText, { color: colors.textPrimary }]}
-                    keyboardType="number-pad"
+                    keyboardType="decimal-pad"
                     value={weightInput}
                     onChangeText={handleSetWeight}
                     onBlur={() => {
-                      if (!weightInput || parseInt(weightInput, 10) <= 0) {
+                      if ((nutritionNumber(weightInput) ?? 0) <= 0) {
                         setWeightG(1);
                         setWeightInput('1');
                       }
                     }}
-                    maxLength={4}
+                    maxLength={7}
                   />
-                  <Text style={[styles.weightUnitLabel, { color: colors.textSecondary }]}>g</Text>
+                  <Text style={[styles.weightUnitLabel, { color: colors.textSecondary }]}>{nutrition?.referenceUnit || 'g'}</Text>
                 </View>
               </View>
 
@@ -370,7 +363,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   sound="decrement" onPress={() => handleAdjustWeight(-50)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-50g</Text>
+                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-50 {nutrition?.referenceUnit || 'g'}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -378,7 +371,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   sound="decrement" onPress={() => handleAdjustWeight(-10)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-10g</Text>
+                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-10 {nutrition?.referenceUnit || 'g'}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -386,7 +379,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   sound="increment" onPress={() => handleAdjustWeight(10)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+10g</Text>
+                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+10 {nutrition?.referenceUnit || 'g'}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -394,7 +387,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   sound="increment" onPress={() => handleAdjustWeight(50)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+50g</Text>
+                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+50 {nutrition?.referenceUnit || 'g'}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -402,7 +395,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   sound="increment" onPress={() => handleAdjustWeight(100)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+100g</Text>
+                  <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+100 {nutrition?.referenceUnit || 'g'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -469,6 +462,8 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                 </Text>
               </View>
 
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10 }}>{t('nutrition_unknown_help')}</Text>
+
               {/* Specific Sub-Macros & Details Grid */}
               <View style={styles.microGrid}>
                 {/* Fibre */}
@@ -476,7 +471,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🥗</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('fibers', 'Fibre')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.fiberG} g</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.fiberG, 'g')}</Text>
                   </View>
                 </View>
 
@@ -485,7 +480,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🍬</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('sugars', 'Zuccheri')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.sugarG} g</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.sugarG, 'g')}</Text>
                   </View>
                 </View>
 
@@ -494,7 +489,15 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🧈</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('sat_fat', 'Grassi Saturi')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.saturatedFatG} g</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.saturatedFatG, 'g')}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.microCard, { backgroundColor: isDarkMode ? '#18271E' : '#F8FAFC', borderColor: isDarkMode ? '#243A2E' : '#E2E8F0' }]}>
+                  <Text style={styles.microIcon}>🧂</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('nutrition_salt')}</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.saltG, 'g')}</Text>
                   </View>
                 </View>
 
@@ -503,7 +506,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🧂</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('sodium', 'Sodio')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.sodiumMg} mg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.sodiumMg, 'mg')}</Text>
                   </View>
                 </View>
 
@@ -512,7 +515,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🍌</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('potassium', 'Potassio')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.potassiumMg} mg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.potassiumMg, 'mg')}</Text>
                   </View>
                 </View>
 
@@ -521,7 +524,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🥛</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('calcium', 'Calcio')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.calciumMg} mg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.calciumMg, 'mg')}</Text>
                   </View>
                 </View>
 
@@ -530,7 +533,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🥩</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('iron', 'Ferro')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.ironMg} mg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.ironMg, 'mg')}</Text>
                   </View>
                 </View>
 
@@ -539,7 +542,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🍊</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('vitamin_c', 'Vitamina C')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.vitaminCMg} mg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.vitaminCMg, 'mg')}</Text>
                   </View>
                 </View>
 
@@ -548,7 +551,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>☀️</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('vitamin_d', 'Vitamina D')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.vitaminDIU} IU</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.vitaminDIU === undefined ? undefined : detailedNutrients.vitaminDIU / 40, 'µg')}</Text>
                   </View>
                 </View>
 
@@ -557,7 +560,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🥕</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('vitamin_a', 'Vitamina A')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.vitaminAIU} IU</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.vitaminAMcg, 'µg')}</Text>
                   </View>
                 </View>
 
@@ -566,7 +569,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🐟</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('vitamin_b12', 'Vitamina B12')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.vitaminB12Mcg} µg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.vitaminB12Mcg, 'µg')}</Text>
                   </View>
                 </View>
 
@@ -575,7 +578,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🥜</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('magnesium', 'Magnesio')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.magnesiumMg} mg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.magnesiumMg, 'mg')}</Text>
                   </View>
                 </View>
 
@@ -584,7 +587,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
                   <Text style={styles.microIcon}>🛡️</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.microLabel, { color: colors.textSecondary }]}>{t('zinc', 'Zinco')}</Text>
-                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{detailedNutrients.zincMg} mg</Text>
+                    <Text style={[styles.microValue, { color: colors.textPrimary }]}>{formatNutrient(detailedNutrients.zincMg, 'mg')}</Text>
                   </View>
                 </View>
               </View>

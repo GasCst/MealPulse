@@ -5,8 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { NutritionSourcePanel } from './NutritionSourcePanel';
+import { scaleFoodPortion, scaleExtras, correctFoodLabel, nutritionNumber } from '@/services/nutritionData';
 import { FoodItem } from '@/services/foodDatabaseService';
-import { UnitService, UnitSystem, GRAMS_PER_OZ } from '@/services/unitService';
+import { UnitService, GRAMS_PER_OZ } from '@/services/unitService';
 
 interface FoodQuantityModalProps {
   visible: boolean;
@@ -19,7 +21,7 @@ type QuantityMode = 'g' | 'oz' | 'serving';
 
 export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
   visible,
-  food,
+  food: originalFood,
   onClose,
   onConfirm,
 }) => {
@@ -30,6 +32,9 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
   const [activeUnit, setActiveUnit] = useState<QuantityMode>(() =>
     unitSystem === 'imperial' ? 'oz' : 'g'
   );
+  const [food, setFood] = useState<FoodItem | null>(originalFood);
+  useEffect(() => { setFood(originalFood); }, [originalFood, visible]);
+  const referenceUnit = food?.nutrition?.referenceUnit || 'g';
   const [inputValue, setInputValue] = useState<string>('100');
 
   // Base pristine nutrition values
@@ -41,9 +46,10 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
 
   // Initialize input value when food opens or changes
   useEffect(() => {
-    if (visible && food) {
+    if (visible && originalFood) {
+      const food = originalFood;
       const initialGrams = food.weightG || 100;
-      const initialUnit = unitSystem === 'imperial' ? 'oz' : 'g';
+      const initialUnit = food.nutrition?.referenceUnit === 'ml' ? 'g' : unitSystem === 'imperial' ? 'oz' : 'g';
       setActiveUnit(initialUnit);
 
       if (initialUnit === 'oz') {
@@ -53,12 +59,12 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
         setInputValue(String(Math.round(initialGrams)));
       }
     }
-  }, [visible, food, unitSystem]);
+  }, [visible, originalFood, unitSystem]);
 
   if (!food) return null;
 
   // Calculate current grams based on active unit & input value
-  const numVal = parseFloat(inputValue.replace(',', '.')) || 0;
+  const numVal = nutritionNumber(inputValue) ?? 0;
   let currentGrams = 100;
 
   if (activeUnit === 'oz') {
@@ -96,7 +102,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
   };
 
   const handleStep = (delta: number) => {
-    const current = parseFloat(inputValue.replace(',', '.')) || 0;
+    const current = nutritionNumber(inputValue) ?? 0;
     let nextVal = current;
 
     if (activeUnit === 'oz') {
@@ -123,7 +129,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
   };
 
   const handleConfirm = () => {
-    const safeGrams = Math.max(1, Math.round(currentGrams));
+    const safeGrams = Math.max(0.1, Math.round(currentGrams * 10) / 10);
     let portionLabel = `${safeGrams}g`;
 
     if (activeUnit === 'oz') {
@@ -132,20 +138,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
       portionLabel = `${numVal} ${t('portion') || 'porzione'} (${safeGrams}g)`;
     }
 
-    const updatedFood: FoodItem = {
-      ...food,
-      weightG: safeGrams,
-      portion: portionLabel,
-      calories: calculated.calories,
-      proteinG: calculated.proteinG,
-      carbsG: calculated.carbsG,
-      fatG: calculated.fatG,
-      baseCalories: baseKcal,
-      baseProteinG: baseProtein,
-      baseCarbsG: baseCarbs,
-      baseFatG: baseFat,
-      baseWeightG: baseWeightG,
-    };
+    const updatedFood = { ...scaleFoodPortion(food, safeGrams), portion: referenceUnit === 'ml' ? `${safeGrams} ml` : portionLabel };
 
     onConfirm(updatedFood);
     onClose();
@@ -212,10 +205,12 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                   <Text style={styles.brandName} numberOfLines={1}>{food.brand}</Text>
                 ) : null}
                 <Text style={[styles.referenceBaseText, { color: colors.textSecondary }]}>
-                  {language === 'it' ? 'Riferimento base:' : 'Base reference:'} {baseKcal} kcal / {baseWeightG}g ({((baseWeightG / GRAMS_PER_OZ).toFixed(1))} oz)
+                  {language === 'it' ? 'Riferimento base:' : 'Base reference:'} {baseKcal} kcal / {baseWeightG} {referenceUnit}
                 </Text>
               </View>
             </View>
+
+            <NutritionSourcePanel info={food.nutrition} values={{ ...scaleExtras(food, 100 / food.weightG), calories: baseKcal * 100 / baseWeightG, proteinG: baseProtein * 100 / baseWeightG, carbsG: baseCarbs * 100 / baseWeightG, fatG: baseFat * 100 / baseWeightG }} onCorrect={(values, info) => { setFood(correctFoodLabel(food, values, info)); if (info.referenceUnit === 'ml' && activeUnit === 'oz') { setActiveUnit('g'); setInputValue(String(Math.round(currentGrams * 10) / 10)); } }} />
 
             {/* Unit Selector Tabs */}
             <View style={[styles.unitSelectorContainer, { backgroundColor: isDarkMode ? '#0F1A15' : '#EEF2F6' }]}>
@@ -225,10 +220,11 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                 activeOpacity={0.8}
               >
                 <Text style={[styles.unitTabText, activeUnit === 'g' && styles.unitTabTextActive]}>
-                  {t('unit_grams') || 'Grammi (g)'}
+                  {referenceUnit === 'ml' ? 'ml' : t('unit_grams') || 'Grammi (g)'}
                 </Text>
               </TouchableOpacity>
 
+              {referenceUnit !== 'ml' && <>
               <TouchableOpacity
                 style={[styles.unitTab, activeUnit === 'oz' && styles.unitTabActive]}
                 sound="select" onPress={() => handleUnitChange('oz')}
@@ -239,6 +235,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                 </Text>
               </TouchableOpacity>
 
+              </>}
               <TouchableOpacity
                 style={[styles.unitTab, activeUnit === 'serving' && styles.unitTabActive]}
                 sound="select" onPress={() => handleUnitChange('serving')}
@@ -270,7 +267,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                   autoFocus={false}
                 />
                 <Text style={[styles.inputUnitSuffix, { color: colors.coral }]}>
-                  {activeUnit === 'g' ? 'g' : activeUnit === 'oz' ? 'oz' : 'x'}
+                  {activeUnit === 'g' ? referenceUnit : activeUnit === 'oz' ? 'oz' : 'x'}
                 </Text>
               </View>
 
@@ -322,7 +319,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                         activeOpacity={0.8}
                       >
                         <Text style={[styles.presetChipText, { color: isSelected ? '#FFFFFF' : colors.textPrimary }]}>
-                          {g}g
+                          {g} {referenceUnit}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -339,7 +336,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
                   {calculated.calories} <Text style={{ fontSize: 16, fontWeight: '600' }}>kcal</Text>
                 </Text>
                 <Text style={[styles.weightPillSub, { color: colors.textSecondary }]}>
-                  {Math.round(currentGrams)}g • {((currentGrams / GRAMS_PER_OZ).toFixed(1))} oz
+                  {Math.round(currentGrams * 10) / 10} {referenceUnit}
                 </Text>
               </View>
 
@@ -374,7 +371,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
             <View style={styles.actionsRow}>
               <TouchableOpacity
                 style={[styles.confirmBtn, { backgroundColor: colors.coral }]}
-                sound="confirm" onPress={handleConfirm}
+                sound="confirm" disabled={currentGrams <= 0} onPress={handleConfirm}
                 activeOpacity={0.85}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />

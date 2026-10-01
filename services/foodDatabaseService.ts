@@ -1,9 +1,11 @@
+import { applyProductLabel } from './productNutritionCorrections';
+import { ExtraNutrients, NutritionInfo, readOffNutrition, scaleFoodPortion } from './nutritionData';
 /**
  * Food Database Service — Powered by Open Food Facts (3.3M+ Products)
  * Supports full multilingual live search, barcode lookup, and curated localized staple food library.
  */
 
-export interface FoodItem {
+export interface FoodItem extends ExtraNutrients {
   id: string;
   name: string;
   brand?: string;
@@ -19,21 +21,9 @@ export interface FoodItem {
   proteinG: number;
   carbsG: number;
   fatG: number;
-  fiberG?: number;
-  sugarG?: number;
-  saturatedFatG?: number;
-  sodiumMg?: number;
-  potassiumMg?: number;
-  calciumMg?: number;
-  ironMg?: number;
-  vitaminCMg?: number;
-  vitaminDIU?: number;
-  vitaminAIU?: number;
-  vitaminB12Mcg?: number;
-  magnesiumMg?: number;
-  zincMg?: number;
   imageUrl?: string;
   barcode?: string;
+  nutrition?: NutritionInfo;
   category?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
 }
 
@@ -557,6 +547,7 @@ export function getLocalizedPopularFoods(lang: string = 'it'): FoodItem[] {
       carbsG: item.carbsG,
       fatG: item.fatG,
       category: item.category,
+      nutrition: { version: 1, source: 'local_estimate', referenceUnit: /ml\b/i.test(loc.portion) ? 'ml' : 'g' },
     };
   });
 }
@@ -597,7 +588,24 @@ export function getFoodEmojiFromName(name: string): string {
 
 export class FoodDatabaseService {
   private static searchCache = new Map<string, FoodItem[]>();
+  private static cacheTime = new Map<string, number>();
+  static clearCache() { this.searchCache.clear(); this.barcodeCache.clear(); this.cacheTime.clear(); }
   private static barcodeCache = new Map<string, FoodItem>();
+
+  /** Search indexes may lag the product record. Resolve the exact barcode before logging. */
+  static async refreshFoodsForLogging(foods: FoodItem[], language: string): Promise<FoodItem[]> {
+    const resolved: FoodItem[] = [];
+    for (let start = 0; start < foods.length; start += 3) {
+      const batch = await Promise.all(foods.slice(start, start + 3).map(async food => {
+        if (!food.barcode || food.nutrition?.source === 'user_label') return food;
+        const current = await this.fetchFoodByBarcode(food.barcode, language);
+        if (!current) throw new Error('Nutrition data unavailable');
+        return scaleFoodPortion(current, food.weightG);
+      }));
+      resolved.push(...batch);
+    }
+    return resolved;
+  }
 
   /**
    * Helper to parse and normalize OpenFoodFacts product payloads from both
@@ -606,26 +614,8 @@ export class FoodDatabaseService {
   private static parseOffProduct(p: any, normLang: string, cleanQuery: string): FoodItem | null {
     if (!p || typeof p !== 'object') return null;
 
-    const nutriments = p.nutriments || {};
-
-    // 1. Calculate energy in kcal (per 100g, or per serving, or converted from kJ)
-    let rawKcal =
-      nutriments['energy-kcal_100g'] ??
-      nutriments['energy-kcal_serving'] ??
-      nutriments['energy-kcal'] ??
-      nutriments['energy-kcal_value'];
-
-    if (rawKcal == null) {
-      if (nutriments['energy-kj_100g']) {
-        rawKcal = nutriments['energy-kj_100g'] / 4.184;
-      } else if (nutriments['energy_100g']) {
-        rawKcal = nutriments['energy_100g'] / 4.184;
-      } else {
-        rawKcal = 0;
-      }
-    }
-    let kcal = Math.max(0, Math.round(rawKcal));
-
+    const values = readOffNutrition(p);
+    if (!values) return null;
     // 2. Localized product name
     let localizedName = '';
     if (normLang === 'it') {
@@ -660,66 +650,15 @@ export class FoodDatabaseService {
       brandName = p.brand_owner.trim();
     }
 
-    const protein = Math.max(0, Math.round(nutriments.proteins_100g ?? nutriments.proteins_serving ?? nutriments.proteins ?? 0));
-    const carbs = Math.max(0, Math.round(nutriments.carbohydrates_100g ?? nutriments.carbohydrates_serving ?? nutriments.carbohydrates ?? 0));
-    const fat = Math.max(0, Math.round(nutriments.fat_100g ?? nutriments.fat_serving ?? nutriments.fat ?? 0));
-    const serving = (p.serving_size && typeof p.serving_size === 'string' && p.serving_size.trim()) || (p.quantity && typeof p.quantity === 'string' && p.quantity.trim()) || '100g';
+    const { calories: kcal, proteinG: protein, carbsG: carbs, fatG: fat } = values;
     const image = p.image_front_small_url || p.image_small_url || p.image_front_url || p.image_url || undefined;
-
-    // Auto-calculate kcal if macros are present but energy was 0
-    if (kcal <= 0 && (protein > 0 || carbs > 0 || fat > 0)) {
-      kcal = Math.round(protein * 4 + carbs * 4 + fat * 9);
-    }
-
     const code = p.code ? String(p.code).trim() : '';
-
-    // Micronutrient extraction from OpenFoodFacts
-    const fiber = nutriments.fiber_100g !== undefined || nutriments.fiber_serving !== undefined
-      ? Math.max(0, Math.round((nutriments.fiber_100g ?? nutriments.fiber_serving ?? 0) * 10) / 10)
-      : undefined;
-    const sugars = nutriments.sugars_100g !== undefined || nutriments.sugars_serving !== undefined
-      ? Math.max(0, Math.round((nutriments.sugars_100g ?? nutriments.sugars_serving ?? 0) * 10) / 10)
-      : undefined;
-    const satFat = nutriments['saturated-fat_100g'] !== undefined || nutriments['saturated-fat_serving'] !== undefined
-      ? Math.max(0, Math.round((nutriments['saturated-fat_100g'] ?? nutriments['saturated-fat_serving'] ?? 0) * 10) / 10)
-      : undefined;
-    const sodium = nutriments.sodium_100g !== undefined || nutriments.salt_100g !== undefined
-      ? Math.max(0, Math.round((nutriments.sodium_100g ?? (nutriments.salt_100g ? nutriments.salt_100g * 400 : 0)) * 1000) / 1000)
-      : undefined;
-    const potassium = nutriments.potassium_100g !== undefined
-      ? Math.max(0, Math.round(nutriments.potassium_100g))
-      : undefined;
-    const calcium = nutriments.calcium_100g !== undefined
-      ? Math.max(0, Math.round(nutriments.calcium_100g))
-      : undefined;
-    const iron = nutriments.iron_100g !== undefined
-      ? Math.max(0, Math.round(nutriments.iron_100g * 10) / 10)
-      : undefined;
-    const vitC = nutriments['vitamin-c_100g'] !== undefined
-      ? Math.max(0, Math.round(nutriments['vitamin-c_100g'] * 10) / 10)
-      : undefined;
-    const vitD = nutriments['vitamin-d_100g'] !== undefined
-      ? Math.max(0, Math.round(nutriments['vitamin-d_100g']))
-      : undefined;
-    const vitA = nutriments['vitamin-a_100g'] !== undefined
-      ? Math.max(0, Math.round(nutriments['vitamin-a_100g']))
-      : undefined;
-    const vitB12 = nutriments['vitamin-b12_100g'] !== undefined
-      ? Math.max(0, Math.round(nutriments['vitamin-b12_100g'] * 10) / 10)
-      : undefined;
-    const magnesium = nutriments.magnesium_100g !== undefined
-      ? Math.max(0, Math.round(nutriments.magnesium_100g))
-      : undefined;
-    const zinc = nutriments.zinc_100g !== undefined
-      ? Math.max(0, Math.round(nutriments.zinc_100g * 10) / 10)
-      : undefined;
 
     return {
       id: `off_${code || Math.random().toString(36).substring(2, 9)}`,
-      name: localizedName.length > 60 ? localizedName.substring(0, 58) + '...' : localizedName,
-      brand: brandName.length > 35 ? brandName.substring(0, 32) + '...' : brandName,
-      calories: kcal,
-      portion: serving,
+      name: localizedName,
+      brand: brandName,
+      portion: `100 ${values.nutrition.referenceUnit}`,
       weightG: 100,
       baseCalories: kcal,
       baseProteinG: protein,
@@ -727,22 +666,7 @@ export class FoodDatabaseService {
       baseFatG: fat,
       baseWeightG: 100,
       emoji: getFoodEmojiFromName(localizedName),
-      proteinG: protein,
-      carbsG: carbs,
-      fatG: fat,
-      fiberG: fiber,
-      sugarG: sugars,
-      saturatedFatG: satFat,
-      sodiumMg: sodium,
-      potassiumMg: potassium,
-      calciumMg: calcium,
-      ironMg: iron,
-      vitaminCMg: vitC,
-      vitaminDIU: vitD,
-      vitaminAIU: vitA,
-      vitaminB12Mcg: vitB12,
-      magnesiumMg: magnesium,
-      zincMg: zinc,
+      ...values,
       imageUrl: image,
       barcode: code || undefined,
     };
@@ -780,8 +704,8 @@ export class FoodDatabaseService {
     }
 
     const cacheKey = `${normLang}_${cleanQuery}`;
-    if (this.searchCache.has(cacheKey)) {
-      return this.searchCache.get(cacheKey)!;
+    if (this.searchCache.has(cacheKey) && Date.now() - (this.cacheTime.get(`search:${cacheKey}`) || 0) < 300000) {
+      return Promise.all(this.searchCache.get(cacheKey)!.map(applyProductLabel));
     }
 
     const offlineMatches = this.getLocalMatches(cleanQuery, normLang);
@@ -802,7 +726,7 @@ export class FoodDatabaseService {
 
         if (parsed.barcode && seenBarcodes.has(parsed.barcode)) continue;
         const nameKey = `${parsed.name.toLowerCase()}_${(parsed.brand || '').toLowerCase()}`;
-        if (seenNames.has(nameKey)) continue;
+        if (!parsed.barcode && seenNames.has(nameKey)) continue;
 
         if (parsed.barcode) seenBarcodes.add(parsed.barcode);
         seenNames.add(nameKey);
@@ -913,9 +837,10 @@ export class FoodDatabaseService {
 
     if (finalResults.length > 0) {
       this.searchCache.set(cacheKey, finalResults);
+      this.cacheTime.set(`search:${cacheKey}`, Date.now());
     }
 
-    return finalResults;
+    return Promise.all(finalResults.map(applyProductLabel));
   }
 
   /**
@@ -928,8 +853,8 @@ export class FoodDatabaseService {
     const normLang = (language || 'it').toLowerCase().slice(0, 2);
     const cacheKey = `${normLang}_${cleanCode}`;
 
-    if (this.barcodeCache.has(cacheKey)) {
-      return this.barcodeCache.get(cacheKey)!;
+    if (this.barcodeCache.has(cacheKey) && Date.now() - (this.cacheTime.get(`barcode:${cacheKey}`) || 0) < 300000) {
+      return applyProductLabel(this.barcodeCache.get(cacheKey)!);
     }
 
     const endpoints = [
@@ -937,7 +862,6 @@ export class FoodDatabaseService {
       `https://${normLang}.openfoodfacts.org/api/v0/product/${encodeURIComponent(cleanCode)}.json`,
       `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(cleanCode)}.json`,
       `https://${normLang}.openfoodfacts.org/api/v2/product/${encodeURIComponent(cleanCode)}.json`,
-      `https://world.openfoodfacts.net/api/v2/product/${encodeURIComponent(cleanCode)}.json`,
     ];
 
     for (const url of endpoints) {
@@ -962,7 +886,8 @@ export class FoodDatabaseService {
           if (item) {
             item.barcode = cleanCode;
             this.barcodeCache.set(cacheKey, item);
-            return item;
+            this.cacheTime.set(`barcode:${cacheKey}`, Date.now());
+            return applyProductLabel(item);
           }
         }
       } catch (err) {
@@ -982,7 +907,7 @@ export class FoodDatabaseService {
 
     // Put top live matches first (so users get live products like 'Pan di Stelle' right away)
     for (const item of live) {
-      const key = `${item.name.toLowerCase()}_${(item.brand || '').toLowerCase()}`;
+      const key = item.barcode || `${item.name.toLowerCase()}_${(item.brand || '').toLowerCase()}`;
       if (!seenNames.has(key)) {
         seenNames.add(key);
         combined.push(item);
@@ -991,7 +916,7 @@ export class FoodDatabaseService {
 
     // Append offline staples that aren't already included
     for (const item of offline) {
-      const key = `${item.name.toLowerCase()}_${(item.brand || '').toLowerCase()}`;
+      const key = item.barcode || `${item.name.toLowerCase()}_${(item.brand || '').toLowerCase()}`;
       if (!seenNames.has(key)) {
         seenNames.add(key);
         combined.push(item);

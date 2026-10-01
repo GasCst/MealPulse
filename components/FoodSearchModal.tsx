@@ -44,6 +44,9 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
   const [selectedItems, setSelectedItems] = useState<FoodItem[]>([]);
   const [foodsList, setFoodsList] = useState<FoodItem[]>(() => getLocalizedPopularFoods(language));
   const [isSearching, setIsSearching] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [nutritionError, setNutritionError] = useState<string | null>(null);
+  const confirmRequestIdRef = useRef(0);
   const [selectedCategory, setSelectedCategory] = useState<FilterCategory>('all');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [showVocalModal, setShowVocalModal] = useState(false);
@@ -55,6 +58,9 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
 
   // Initialize foods and reset search on open or language change
   useEffect(() => {
+    confirmRequestIdRef.current++;
+    setIsVerifying(false);
+    setNutritionError(null);
     if (visible) {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
       searchRequestIdRef.current++;
@@ -170,10 +176,22 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
     }
   };
 
-  const handleOpenQuantityModal = (food: FoodItem) => {
+  const handleOpenQuantityModal = async (food: FoodItem) => {
+    if (isVerifying) return;
     const existing = selectedItems.find((i) => i.id === food.id);
-    setEditingFood(existing || food);
-    setShowQuantityModal(true);
+    const requestId = ++confirmRequestIdRef.current;
+    setIsVerifying(true);
+    setNutritionError(null);
+    try {
+      const [current] = await FoodDatabaseService.refreshFoodsForLogging([existing || food], language);
+      if (requestId !== confirmRequestIdRef.current) return;
+      setEditingFood(current);
+      setShowQuantityModal(true);
+    } catch {
+      if (requestId === confirmRequestIdRef.current) setNutritionError(t('nutrition_barcode_unavailable'));
+    } finally {
+      if (requestId === confirmRequestIdRef.current) setIsVerifying(false);
+    }
   };
 
   const handleSaveQuantity = (updatedFood: FoodItem) => {
@@ -192,34 +210,27 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
     );
   };
 
-  const handleAddSelected = () => {
-    if (selectedItems.length > 0) {
-      onAddFoods(selectedItems);
+  const handleAddSelected = async () => {
+    if (!selectedItems.length || isVerifying) return;
+    const requestId = ++confirmRequestIdRef.current;
+    setIsVerifying(true);
+    setNutritionError(null);
+    try {
+      const verified = await FoodDatabaseService.refreshFoodsForLogging(selectedItems, language);
+      if (requestId !== confirmRequestIdRef.current) return;
+      onAddFoods(verified);
       setSelectedItems([]);
       onClose();
+    } catch {
+      if (requestId === confirmRequestIdRef.current) setNutritionError(t('nutrition_barcode_unavailable'));
+    } finally {
+      if (requestId === confirmRequestIdRef.current) setIsVerifying(false);
     }
   };
 
-  const handleBarcodeMealAdded = (meal: { name: string; calories: number; protein: number; carbs: number; fat: number }) => {
+  const handleBarcodeFoodAdded = (food: FoodItem) => {
     setShowBarcodeScanner(false);
-    const newFood: FoodItem = {
-      id: `bc_${Date.now()}`,
-      name: meal.name,
-      calories: meal.calories,
-      portion: '1 porzione',
-      weightG: 100,
-      baseCalories: meal.calories,
-      baseProteinG: meal.protein,
-      baseCarbsG: meal.carbs,
-      baseFatG: meal.fat,
-      baseWeightG: 100,
-      emoji: '🏷️',
-      proteinG: meal.protein,
-      carbsG: meal.carbs,
-      fatG: meal.fat,
-    };
-    onAddFoods([newFood]);
-    onClose();
+    handleSaveQuantity(food);
   };
 
   const mealNameTranslated = t(`meal_${mealType}`) || mealType;
@@ -418,7 +429,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
               const selectedMatch = selectedItems.find((i) => i.id === item.id);
               const isSelected = !!selectedMatch;
               const currentItem = selectedMatch || item;
-              const displayWeightStr = UnitService.formatFoodWeight(currentItem.weightG || 100, unitSystem);
+              const displayWeightStr = currentItem.nutrition?.referenceUnit === 'ml' ? `${currentItem.weightG} ml` : UnitService.formatFoodWeight(currentItem.weightG || 100, unitSystem);
               const isCustomWeight = currentItem.weightG && currentItem.weightG !== (currentItem.baseWeightG || 100);
 
               return (
@@ -429,7 +440,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                     { backgroundColor: isDarkMode ? '#14221B' : '#FFFFFF' },
                     isSelected && { borderColor: colors.coral, borderWidth: 1.5 },
                   ]}
-                  sound="open" onPress={() => handleOpenQuantityModal(currentItem)}
+                  disabled={isVerifying} sound="open" onPress={() => handleOpenQuantityModal(currentItem)}
                   activeOpacity={0.7}
                 >
                   {/* Thumbnail / Emoji */}
@@ -449,6 +460,8 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                     {item.brand ? (
                       <Text style={styles.brandText} numberOfLines={1}>{item.brand}</Text>
                     ) : null}
+
+                    <Text style={{ fontSize: 10, color: colors.textSecondary }}>{t(`nutrition_source_${currentItem.nutrition?.source || 'legacy'}`)}{currentItem.barcode ? ` · ${currentItem.barcode}` : ''}</Text>
 
                     {/* Quantity & Reference Badge Row */}
                     <View style={styles.macroRow}>
@@ -502,7 +515,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                       styles.addCircle,
                       { backgroundColor: isSelected ? colors.coral : isDarkMode ? '#22382D' : '#F1F5F9' },
                     ]}
-                    sound={isSelected ? 'decrement' : 'increment'} onPress={() => toggleItem(currentItem)}
+                    disabled={isVerifying} sound={isSelected ? 'decrement' : 'increment'} onPress={() => toggleItem(currentItem)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <Ionicons
@@ -517,19 +530,25 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
           </View>
         </ScrollView>
 
+        {!selectedItems.length && (isVerifying || nutritionError) && <View style={{ padding: 14 }}>
+          {isVerifying && <ActivityIndicator color={colors.coral} />}
+          <Text style={{ color: colors.coral }}>{nutritionError || t('nutrition_checking')}</Text>
+        </View>}
+
         {/* Floating Bottom Add Button */}
         {selectedItems.length > 0 && (
           <View style={styles.bottomBarContainer}>
+            {nutritionError && <Text style={{ color: colors.coral, fontSize: 12, paddingBottom: 10 }}>{nutritionError}</Text>}
             <TouchableOpacity
               style={[styles.addMealBtn, { backgroundColor: colors.coral }]}
-              sound="confirm" onPress={handleAddSelected}
+              disabled={isVerifying} accessibilityState={{ busy: isVerifying, disabled: isVerifying }} sound="confirm" onPress={handleAddSelected}
               activeOpacity={0.85}
             >
               <Text style={styles.addMealBtnText}>
-                {t('add_to_meal_btn')} {mealNameTranslated}
+                {isVerifying ? t('nutrition_checking') : `${t('add_to_meal_btn')} ${mealNameTranslated}`}
               </Text>
               <View style={styles.badgeCircle}>
-                <Text style={styles.badgeText}>{selectedItems.length}</Text>
+                {isVerifying ? <ActivityIndicator size="small" color={colors.coral} /> : <Text style={styles.badgeText}>{selectedItems.length}</Text>}
               </View>
             </TouchableOpacity>
           </View>
@@ -539,7 +558,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
         <BarcodeScannerModal
           visible={showBarcodeScanner}
           onClose={() => setShowBarcodeScanner(false)}
-          onMealAdded={handleBarcodeMealAdded}
+          onFoodAdded={handleBarcodeFoodAdded}
         />
 
         {/* Vocal AI Search Modal Integration */}
@@ -551,6 +570,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
               const safeWeight = m.weightG && m.weightG > 0 ? m.weightG : 100;
               const ratio = 100 / safeWeight;
               return {
+                nutrition: { version: 1, source: 'ai_estimate', referenceUnit: 'g' },
                 id: `vocal_${Date.now()}_${idx}`,
                 name: m.name,
                 calories: m.calories,
@@ -567,8 +587,9 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                 fatG: m.fat,
               };
             });
-            onAddFoods(convertedItems);
-            onClose();
+            setSelectedItems(prev => [...prev, ...convertedItems]);
+            setFoodsList(prev => [...convertedItems, ...prev]);
+            setShowVocalModal(false);
           }}
         />
 

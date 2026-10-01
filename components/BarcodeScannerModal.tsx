@@ -1,3 +1,5 @@
+import { NutritionSourcePanel } from './NutritionSourcePanel';
+import { scaleFoodPortion, scaleExtras, correctFoodLabel, nutritionNumber } from '@/services/nutritionData';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Image } from 'react-native';
@@ -13,13 +15,13 @@ import { AdBanner } from '@/components/AdBanner';
 interface BarcodeScannerModalProps {
   visible: boolean;
   onClose: () => void;
-  onMealAdded: (meal: { name: string; calories: number; protein: number; carbs: number; fat: number }) => void;
+  onFoodAdded: (food: FoodItem) => void;
 }
 
 export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   visible,
   onClose,
-  onMealAdded,
+  onFoodAdded,
 }) => {
   const { t, language } = useLanguage();
   const { colors, isDarkMode } = useTheme();
@@ -60,14 +62,16 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       const item = await FoodDatabaseService.fetchFoodByBarcode(cleanCode, language);
       if (item) {
         setFoundFood(item);
-        if (activeUnit === 'oz') {
+        const unit = item.nutrition?.referenceUnit === 'ml' ? 'g' : unitSystem === 'imperial' ? 'oz' : 'g';
+        setActiveUnit(unit);
+        if (unit === 'oz') {
           const oz = ((item.weightG || 100) / GRAMS_PER_OZ).toFixed(1);
           setInputValue(oz.endsWith('.0') ? oz.slice(0, -2) : oz);
         } else {
           setInputValue(item.weightG?.toString() || '100');
         }
       } else {
-        setError('Codice a barre non trovato nel database (3.3M alimenti). Prova a digitare il nome nella ricerca.');
+        setError(t('nutrition_barcode_unavailable'));
       }
     } catch (e: any) {
       setError('Errore di connessione durante la ricerca del codice a barre. Riprova.');
@@ -87,45 +91,21 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const handleConfirmAdd = () => {
     if (!foundFood) return;
 
-    const numVal = parseFloat(inputValue.replace(',', '.')) || 0;
-    const computedGrams = activeUnit === 'oz' ? Math.round(numVal * GRAMS_PER_OZ) : Math.round(numVal);
-    const safeGrams = Math.max(1, computedGrams);
+    const numVal = nutritionNumber(inputValue) ?? 0;
+    const computedGrams = activeUnit === 'oz' ? Math.round(numVal * GRAMS_PER_OZ * 10) / 10 : Math.round(numVal * 10) / 10;
+    const safeGrams = Math.max(0.1, computedGrams);
 
-    const baseKcal = foundFood.baseCalories ?? foundFood.calories ?? 0;
-    const baseProtein = foundFood.baseProteinG ?? foundFood.proteinG ?? 0;
-    const baseCarbs = foundFood.baseCarbsG ?? foundFood.carbsG ?? 0;
-    const baseFat = foundFood.baseFatG ?? foundFood.fatG ?? 0;
-    const baseWeight = foundFood.baseWeightG || 100;
-
-    const recalculated = UnitService.recalculateMacros(
-      baseKcal,
-      baseProtein,
-      baseCarbs,
-      baseFat,
-      baseWeight,
-      safeGrams
-    );
-
-    const displayName = foundFood.brand
-      ? `${foundFood.name} (${foundFood.brand})`
-      : foundFood.name;
-
-    onMealAdded({
-      name: displayName,
-      calories: recalculated.calories,
-      protein: recalculated.proteinG,
-      carbs: recalculated.carbsG,
-      fat: recalculated.fatG,
-    });
+    onFoodAdded(scaleFoodPortion(foundFood, safeGrams));
 
     setBarcode('');
     setFoundFood(null);
     onClose();
   };
 
-  const numVal = parseFloat(inputValue.replace(',', '.')) || 0;
+  const numVal = nutritionNumber(inputValue) ?? 0;
   const currentGrams = activeUnit === 'oz' ? Math.max(0, numVal * GRAMS_PER_OZ) : Math.max(0, numVal);
 
+  const referenceUnit = foundFood?.nutrition?.referenceUnit || 'g';
   const baseKcal = foundFood?.baseCalories ?? foundFood?.calories ?? 0;
   const baseProtein = foundFood?.baseProteinG ?? foundFood?.proteinG ?? 0;
   const baseCarbs = foundFood?.baseCarbsG ?? foundFood?.carbsG ?? 0;
@@ -266,10 +246,12 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                       {currentMacros.calories} kcal
                     </Text>
                     <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                      Base: {baseKcal} kcal / {baseWeight}g
+                      Base: {baseKcal} kcal / {baseWeight} {referenceUnit}
                     </Text>
                   </View>
                 </View>
+
+                <NutritionSourcePanel info={foundFood.nutrition} values={{ ...scaleExtras(foundFood, 100 / foundFood.weightG), calories: baseKcal * 100 / baseWeight, proteinG: baseProtein * 100 / baseWeight, carbsG: baseCarbs * 100 / baseWeight, fatG: baseFat * 100 / baseWeight }} onCorrect={(values, info) => { setFoundFood(correctFoodLabel(foundFood, values, info)); if (info.referenceUnit === 'ml' && activeUnit === 'oz') { setActiveUnit('g'); setInputValue(String(Math.round(currentGrams * 10) / 10)); } }} />
 
                 {/* Unit Switch & Quantity Input */}
                 <View style={styles.portionRow}>
@@ -286,8 +268,9 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                         }
                       }}
                     >
-                      <Text style={[styles.unitSmallText, activeUnit === 'g' && { color: '#FFFFFF', fontWeight: '800' }]}>g</Text>
+                      <Text style={[styles.unitSmallText, activeUnit === 'g' && { color: '#FFFFFF', fontWeight: '800' }]}>{referenceUnit}</Text>
                     </TouchableOpacity>
+                    {referenceUnit !== 'ml' && <>
                     <TouchableOpacity
                       style={[
                         styles.unitSmallBtn,
@@ -303,6 +286,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                     >
                       <Text style={[styles.unitSmallText, activeUnit === 'oz' && { color: '#FFFFFF', fontWeight: '800' }]}>oz</Text>
                     </TouchableOpacity>
+                    </>}
                   </View>
 
                   <View style={styles.gramsInputBox}>
@@ -312,7 +296,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                       value={inputValue}
                       onChangeText={setInputValue}
                     />
-                    <Text style={[styles.gramsUnit, { color: colors.textSecondary }]}>{activeUnit}</Text>
+                    <Text style={[styles.gramsUnit, { color: colors.textSecondary }]}>{activeUnit === 'g' ? referenceUnit : activeUnit}</Text>
                   </View>
                 </View>
 
@@ -342,7 +326,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
 
                 <TouchableOpacity
                   style={[styles.addFoodBtn, { backgroundColor: colors.coral }]}
-                  sound="confirm" onPress={handleConfirmAdd}
+                  disabled={currentGrams <= 0} sound="confirm" onPress={handleConfirmAdd}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.addFoodBtnText}>Aggiungi al Diario ➕</Text>

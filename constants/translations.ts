@@ -1,3 +1,5 @@
+import { NUTRITION_TRANSLATIONS } from './nutritionTranslations';
+
 export type LanguageCode = 'it' | 'en' | 'es' | 'fr' | 'de' | 'zh' | 'ja';
 
 export interface LanguageOption {
@@ -19,6 +21,7 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
 
 export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   it: {
+    ...NUTRITION_TRANSLATIONS.it,
     // Navigation Tabs
     tab_home: 'Home',
     tab_progress: 'Progresso',
@@ -366,6 +369,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   },
 
   en: {
+    ...NUTRITION_TRANSLATIONS.en,
     tab_home: 'Home',
     tab_progress: 'Progress',
     tab_scan: 'Scan',
@@ -670,6 +674,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   },
 
   es: {
+    ...NUTRITION_TRANSLATIONS.es,
     tab_home: 'Inicio',
     tab_progress: 'Progreso',
     tab_scan: 'Escanear',
@@ -944,6 +949,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   },
 
   fr: {
+    ...NUTRITION_TRANSLATIONS.fr,
     tab_home: 'Accueil',
     tab_progress: 'Progrès',
     tab_scan: 'Scanner',
@@ -1218,6 +1224,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   },
 
   de: {
+    ...NUTRITION_TRANSLATIONS.de,
     tab_home: 'Home',
     tab_progress: 'Fortschritt',
     tab_scan: 'Scannen',
@@ -1492,6 +1499,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   },
 
   zh: {
+    ...NUTRITION_TRANSLATIONS.zh,
     tab_home: '首页',
     tab_progress: '进度',
     tab_scan: '扫描',
@@ -1766,6 +1774,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   },
 
   ja: {
+    ...NUTRITION_TRANSLATIONS.ja,
     tab_home: 'ホーム',
     tab_progress: '進捗',
     tab_scan: 'スキャン',

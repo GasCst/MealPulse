@@ -1,3 +1,5 @@
+import { extrasToMealFields } from '@/services/nutritionDetailsService';
+import { NutritionInfo } from '@/services/nutritionData';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, Modal, ActivityIndicator, Alert, Platform } from 'react-native';
@@ -16,7 +18,7 @@ import { ProfileModal } from '@/components/ProfileModal';
 import { NotificationModal } from '@/components/NotificationModal';
 import { analyzeMealPlateImage } from '@/services/aiVisionService';
 import { AdScanModal } from '@/components/AdScanModal';
-import { ManualMealModal } from '@/components/ManualMealModal';
+import { ManualMealModal, ManualMealInput } from '@/components/ManualMealModal';
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal';
 import { WaterTrackerCard } from '@/components/WaterTrackerCard';
 import { FastingTimerCard } from '@/components/FastingTimerCard';
@@ -50,6 +52,7 @@ export interface LoggedMeal {
   imageUri?: string;
   time: string;
   emoji?: string;
+  salt_g?: number;
   fiber_g?: number;
   sugar_g?: number;
   saturated_fat_g?: number;
@@ -59,6 +62,8 @@ export interface LoggedMeal {
   iron_mg?: number;
   vitamin_c_mg?: number;
   vitamin_d_iu?: number;
+  nutrition?: NutritionInfo;
+  vitamin_a_mcg?: number;
   vitamin_a_iu?: number;
   vitamin_b12_mcg?: number;
   magnesium_mg?: number;
@@ -173,6 +178,8 @@ export default function HomeScreen() {
               category: (m.meal_type?.toLowerCase() as any) || 'dinner',
               name: m.food_name,
               brand: existingLocal?.brand,
+              nutrition: existingLocal?.nutrition,
+              vitamin_a_mcg: existingLocal?.vitamin_a_mcg,
               calories: Number(m.calories || 0),
               protein: Number(m.protein_g || 0),
               carbs: Number(m.carbs_g || 0),
@@ -189,6 +196,7 @@ export default function HomeScreen() {
               time: m.logged_at
                 ? new Date(m.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 : existingLocal?.time || 'Today',
+              salt_g: existingLocal?.salt_g,
               fiber_g: existingLocal?.fiber_g,
               sugar_g: existingLocal?.sugar_g,
               saturated_fat_g: existingLocal?.saturated_fat_g,
@@ -330,6 +338,8 @@ export default function HomeScreen() {
         category: activeMealType,
         name: item.name,
         brand: item.brand,
+        nutrition: item.nutrition,
+        vitamin_a_mcg: item.vitaminAMcg,
         calories: item.calories,
         protein: item.proteinG || 0,
         carbs: item.carbsG || 0,
@@ -343,6 +353,7 @@ export default function HomeScreen() {
         portion: item.portion,
         emoji: item.emoji,
         imageUri: item.imageUrl,
+        salt_g: item.saltG,
         fiber_g: item.fiberG,
         sugar_g: item.sugarG,
         saturated_fat_g: item.saturatedFatG,
@@ -609,6 +620,8 @@ export default function HomeScreen() {
         id: mealId,
         category: targetCategory,
         name: finalData.food_name,
+        ...extrasToMealFields(finalData),
+        nutrition: finalData.nutrition || { version: 1, source: 'ai_estimate', referenceUnit: 'g' },
         calories: finalData.calories,
         protein: finalData.protein_g,
         carbs: finalData.carbs_g,
@@ -719,14 +732,15 @@ export default function HomeScreen() {
     }
   };
 
-  const handleAddManualMeal = (meal: { name: string; calories: number; protein: number; carbs: number; fat: number }) => {
+  const handleAddManualMeal = (meal: ManualMealInput) => {
     handleAddFoodsFromCatalog([
       {
         id: generateUUID(),
         name: meal.name,
+        nutrition: meal.nutrition || { version: 1, source: 'manual', referenceUnit: 'g' },
         calories: meal.calories,
-        portion: '1 portion',
-        weightG: 100,
+        portion: meal.portion || '100 g',
+        weightG: meal.weightG || 100,
         emoji: '🍽️',
         proteinG: meal.protein,
         carbsG: meal.carbs,
@@ -1079,7 +1093,7 @@ export default function HomeScreen() {
       <NotificationModal visible={showNotifModal} onClose={() => setShowNotifModal(false)} />
       <AdScanModal visible={showAdScanModal} onAdCompleted={handleAdCompleted} onClose={() => setShowAdScanModal(false)} />
       <ManualMealModal visible={showManualMealModal} onClose={() => setShowManualMealModal(false)} onMealAdded={handleAddManualMeal} />
-      <BarcodeScannerModal visible={showBarcodeModal} onClose={() => setShowBarcodeModal(false)} onMealAdded={handleAddManualMeal} />
+      <BarcodeScannerModal visible={showBarcodeModal} onClose={() => setShowBarcodeModal(false)} onFoodAdded={food => handleAddFoodsFromCatalog([food])} />
       <PaywallModal />
     </SafeAreaView>
   );
