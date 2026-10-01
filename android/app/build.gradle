@@ -92,8 +92,8 @@ android {
         applicationId 'com.mealpulse.app'
         minSdkVersion 26
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 121
-        versionName "2.5.11"
+        versionCode 122
+        versionName "2.5.12"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

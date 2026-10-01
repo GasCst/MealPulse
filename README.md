@@ -93,7 +93,9 @@ Reference: [OFF nutrition schema](https://openfoodfacts.github.io/documentation/
 - **Action-aware sound feedback**: App-owned buttons use 16 original local cues. Quantity increases/decreases and selections use short, quiet ticks; saving portions and finishing use different melodic confirmations. Navigation, opening/closing panels, scans, voice playback, major actions, rewards and switch states each have their own cue.
 - **Consistent across languages**: Each button declares its action sound explicitly; changing the interface language does not change its assigned sound.
 - **Reliable local playback**: Android preloads the short WAVs into a native SoundPool; iOS, web and development builds use Expo players. Distinct rapid presses are retained, including presses made during loading. Only the same bubbled press event is deduplicated. Different action cues finish without stopping each other, and failed players are retried with a fallback. Button sounds never stop the TTS player or change its audio mode. See the [sound palette](assets/sounds/README.md).
-- **Optional sound**: Toggle **Button sounds / Suoni dei pulsanti** in Menu PRO. The preference is saved on the device.
+- **Sound customization**: Open **Menu PRO → Button sounds / Suoni dei pulsanti → Customize sounds / Personalizza i suoni**. Choose one of 12 themes (classic, minimal, nature, water bubbles, Christmas, Halloween, horror, space, arcade, funny cartoon, raspberries, farts) or open **By action / Per azione** for 16 individual category submenus. The 104 original effects play offline; previews never apply a choice. Applying a theme replaces individual overrides; an individual category can follow the theme, use any library effect, or be silent. Action importance still determines volume.
+- **PRO or a rewarded video**: Active PRO subscribers can customize freely. Free users must complete a fresh rewarded AdMob video for each non-default theme/category change. A reward authorizes only that pending choice, which remains saved on the device. Skips, network errors, missing SDKs, web previews, timeouts and cancelled settings screens never grant an unlock. Restoring the classic defaults and the global mute toggle remain free.
+- **Small playback cache**: Only the selected palette is warmed; the remaining effects load on demand. Decoded players are capped at 24 outside active loads/queued commands. Legacy mute preferences survive the update and invalid custom preferences recover safely.
 - **Voice preparation**: Briefing, hydration coach, daily recap, celebrations, voice previews and meal roasts show a spinner while preparing text, generating speech, downloading the WAV and starting the player. New labels follow the selected language.
 - **Scoped playback**: Each voice feature shows its own loading/playback state. Repeated generation taps are blocked; cancelled server requests cannot start stale audio or device-speech fallback.
 - **Other slow actions**: Health synchronization and purchase restoration display button loading feedback.
@@ -267,7 +269,7 @@ cd android && ./gradlew bundleRelease
 The output bundle will be located at:
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-The nutrition-data and product-photo release is **2.5.11**, Android version code **121**. Keep
+The customizable-sound release is **2.5.12**, Android version code **122**. Keep
 `app.json` and `android/app/build.gradle` versions synchronized before the next build.
 
 ---
@@ -294,7 +296,9 @@ verification checks transport and voice provenance; perceived naturalness still
 requires listening.
 
 The UI feedback suite checks button coverage, action categories, disabled controls, mute persistence,
-distinct audio assets, rapid presses, presses during preload, event deduplication,
+distinct audio assets, all seven sound-setting translations, saved themes/category overrides,
+preview isolation, storage failure rollback, bounded caching, PRO/rewarded-ad settings flows,
+skipped/error/timed-out/cancelled ads, rapid presses, presses during preload, event deduplication,
 serialized player commands, retry/fallback recovery, native Android resource mapping
 and cancellation during mute/release, as well as
 voice loading through WAV download/player setup, request cancellation and stale
