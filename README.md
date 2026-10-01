@@ -31,7 +31,7 @@ Snap a photo of any food plate or fruit, automatically count individual items (e
   5. 🎙️ **Sara Gen-Z**: Energetic, unfiltered fitness bestie living on meme logic.
 - **63 Neural Voices Library**: 58+ pre-calculated neural voices plus 5 custom cloned characters accessible via the Pro Voice Selector modal with detailed timbre, tone, language, and cadence profiles.
 - **5 Dedicated Spoken Touchpoints**:
-  1. 🌅 **Morning AI Nutrition Briefing**: 10-second morning briefing outlining caloric and protein targets for the day.
+  1. 🌅 **Morning AI Nutrition Briefing**: Live spoken summary of the selected day's calories eaten, activity calories burned, remaining calorie budget and remaining protein. It shares the ring's budget calculation and respects the setting for including activity calories. Meals, activity sync, date, voice and language changes refresh the text and invalidate stale audio. Numeric facts come directly from the homepage; AI adds a short encouragement in the selected voice's style, including Neapolitan.
   2. 💧 **Hydration Voice Coach**: Spoken encouragements and milestone celebrations on every glass logged.
   3. 🍽️ **Meal Roast Commentary**: Instant humorous critique and macro breakdown right after logging or scanning a plate.
   4. 📖 **Daily Voice Recap**: Evening debrief reviewing daily calorie budget compliance and workout burn.
@@ -251,7 +251,7 @@ cd android && ./gradlew bundleRelease
 The output bundle will be located at:
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-The reliable button-sound release is **2.5.8**, Android version code **118**. Keep
+The live morning-briefing release is **2.5.9**, Android version code **119**. Keep
 `app.json` and `android/app/build.gradle` versions synchronized before the next build.
 
 ---
@@ -264,6 +264,7 @@ npm run lint
 venv_mlx_tts/bin/python -m unittest discover -s tools -p 'test_tts*.py'
 node --test tools/test_remote_config.cjs
 node --test tools/test_ui_feedback.cjs
+node --test tools/test_morning_briefing.cjs
 ```
 
 The Python suite covers routing, voice aliases, WAV format, cache invalidation,
@@ -279,6 +280,11 @@ and cancellation during mute/release, as well as
 voice loading through WAV download/player setup, request cancellation and stale
 playback callbacks. Listen to the tap sound and test TTS on a physical phone using
 the Google Play internal testing track before promoting a release.
+
+The morning briefing suite checks meal and walking updates, the activity-budget setting,
+zero remaining targets, bounded context-aware caching, all supported languages and
+Neapolitan wording. It also renders the actual card to verify updates with the same
+voice, delayed-response cancellation and voice/language changes.
 
 Additional verification tools:
 - **TTS Cache Test**: `venv_mlx_tts/bin/python tools/test_tts_audio_cache.py`
