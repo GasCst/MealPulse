@@ -398,6 +398,7 @@ function voiceFixture(fetchImpl, soundGate = null, stopSpeech = async () => {}) 
     'expo-file-system/legacy': { cacheDirectory: '/cache/', EncodingType: { Base64: 'base64' }, writeAsStringAsync: async () => {} },
     '@/services/remoteConfigService': { getDynamicTtsApiUrl: async () => 'http://mac:8000' },
     '@/services/voiceTextStyle': { cleanSpokenText: text => text.trim(), getVoiceLanguage: async () => 'it', speechCacheKey: (...args) => JSON.stringify(args) },
+    '@/services/briefingContext': {},
     'expo-av': { Audio: { setAudioModeAsync: async () => {}, Sound: { createAsync: async (_uri, initial, callback) => {
       assert.equal(initial.shouldPlay, false);
       const sound = {

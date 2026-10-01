@@ -789,7 +789,11 @@ export default function HomeScreen() {
         {/* Morning AI Nutrition Briefing (Il buongiorno del Coach) */}
         <MorningBriefingCard
           targetCalories={targetCal}
-          targetProtein={proteinLeft > 0 ? proteinLeft : 140}
+          eatenCalories={totalCalories}
+          burnedCalories={burnedCal}
+          proteinLeft={proteinLeft}
+          includeBurnedInBudget={includeBurnedInBudget}
+          dateKey={selectedDateKey}
         />
 
         {/* Weekly Calendar Day Strip */}

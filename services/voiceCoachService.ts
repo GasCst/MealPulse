@@ -8,9 +8,10 @@ import { getDynamicTtsApiUrl } from '@/services/remoteConfigService';
 import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
 import { cleanSpokenText, coachFallback, getVoiceLanguage, isNeapolitanVoice, speechCacheKey, spokenTextRules } from '@/services/voiceTextStyle';
 import { LanguageCode } from '@/constants/translations';
+import { briefingContextKey, morningBriefingFacts, briefingEncouragement, type MorningBriefingSnapshot } from '@/services/briefingContext';
 
 const PREFERRED_VOICE_STORAGE_KEY = '@mealpulse_preferred_coach_voice';
-const MORNING_BRIEFING_CACHE_KEY = '@mealpulse_morning_briefing_v3';
+const MORNING_BRIEFING_CACHE_KEY = '@mealpulse_morning_briefing_v4';
 
 export const DEFAULT_COACH_VOICE: ModelVoiceItem = {
   id: 'zio_italiano',
@@ -46,6 +47,7 @@ class VoiceCoachService {
   private speechGeneration = 0;
   private pendingRequest: AbortController | null = null;
   private audioCache: Record<string, string> = {};
+  private morningBriefingRequests = new Map<string, Promise<string>>();
 
   constructor() {
     this.init();
@@ -146,7 +148,8 @@ class VoiceCoachService {
     return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
   }
 
-  public async stopAudio(): Promise<void> {
+  public async stopAudio(scope?: VoicePlaybackScope): Promise<void> {
+    if (scope && this.activeScope !== scope) return;
     this.speechGeneration++;
     this.pendingRequest?.abort();
     this.pendingRequest = null;
@@ -183,7 +186,7 @@ class VoiceCoachService {
 
   /** Loading covers endpoint lookup, generation, download and player preparation. */
   public async playSpeech(
-    text: string, voiceId?: string, scope: VoicePlaybackScope = 'coach'
+    text: string, voiceId?: string, scope: VoicePlaybackScope = 'coach', selectedLanguage?: LanguageCode
   ): Promise<(() => Promise<void>) | null> {
     const generation = this.speechGeneration + 1;
     await this.stopAudio();
@@ -191,7 +194,7 @@ class VoiceCoachService {
     const currentVoice = voiceId || (await this.getPreferredCoachVoice()).id;
     if (generation !== this.speechGeneration) return null;
     this.setPlaybackState(false, true, currentVoice, scope);
-    const language = await getVoiceLanguage();
+    const language = selectedLanguage || (await getVoiceLanguage());
     if (generation !== this.speechGeneration) return null;
     text = cleanSpokenText(text);
     const cacheKey = speechCacheKey(text, currentVoice, language);
@@ -285,50 +288,45 @@ class VoiceCoachService {
   // FEATURE 1: Morning AI Nutrition Briefing
   // ==========================================
   public async getMorningBriefing(
-    targetCalories: number,
-    targetProtein: number,
-    voice?: ModelVoiceItem
+    snapshot: MorningBriefingSnapshot,
+    voice?: ModelVoiceItem,
+    selectedLanguage?: LanguageCode
   ): Promise<string> {
     const activeVoice = voice || (await this.getPreferredCoachVoice());
-    const language = await getVoiceLanguage();
-    const now = new Date();
-    const today = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
-    const cacheKey = `${MORNING_BRIEFING_CACHE_KEY}_${today}_${activeVoice.id}_${language}_${targetCalories}_${targetProtein}`;
+    const language = selectedLanguage || (await getVoiceLanguage());
+    const key = briefingContextKey(snapshot, activeVoice.id, language);
+    const pending = this.morningBriefingRequests.get(key);
+    if (pending) return pending;
 
-    try {
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) return cached;
-    } catch {}
+    const request = (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(MORNING_BRIEFING_CACHE_KEY);
+        const cached = saved ? JSON.parse(saved) : null;
+        if (cached?.key === key && typeof cached.text === 'string' && cached.text) return cached.text;
+      } catch {}
 
-    const prompt = `Sei ${activeVoice.name} (${activeVoice.styleTag}), un coach nutrizionale AI con personalità ${activeVoice.personality}.
-Pronuncia il "Morning Nutrition Briefing" di 10 secondi per l'utente appena sveglio.
-Dati di oggi: Budget calorico: ${targetCalories} kcal, Target proteine: ${targetProtein}g.
-REGOLE:
-1. Sii energico, motivante e incisivo, con il tuo stile e cadenza tipica (${activeVoice.cadence}).
-2. Massimo 2 frasi concise (15-20 parole).
-3. Nessuna promessa medica o giudizio sul corpo.
+      // Nutrition facts are deterministic: the AI only writes the closing encouragement.
+      const facts = morningBriefingFacts(snapshot, activeVoice.id, language);
+      const prompt = `Sei ${activeVoice.name} (${activeVoice.styleTag}), un coach AI con personalità ${activeVoice.personality}.
+Dopo questo resoconto già completo: "${facts}", aggiungi SOLO una frase di incoraggiamento di massimo 8 parole.
+Non ripetere il resoconto. Non aggiungere numeri, quantità, calorie, proteine o consigli per compensare i pasti.
+Usa il tuo stile e cadenza (${activeVoice.cadence}). Nessuna promessa medica o giudizio sul corpo.
 ${spokenTextRules(activeVoice.id, language)}`;
-
-    const generated = await this.callGeminiQuick(prompt);
-    const result = cleanSpokenText(
-      generated ||
-      (language !== 'it' || isNeapolitanVoice(activeVoice.id)
-        ? coachFallback('morning', language, activeVoice.id, { calories: targetCalories, protein: targetProtein })
-        : activeVoice.id === 'chef_sarcastico'
-        ? `Sveglia, asino!... Oggi hai un budget di ${targetCalories} calorie e ${targetProtein}g di proteine... Meno scuse e massima disciplina!`
-        : activeVoice.id === 'diva_ironica'
-        ? `Buongiorno darling!... Oggi ${targetCalories} calorie e ${targetProtein}g di proteine... Si mangia chic e con classe!`
-        : activeVoice.id === 'roastmaster'
-        ? `A regà, sveglia!... Oggi se magnano ${targetCalories} calorie e ${targetProtein}g de proteine... Rigorosi e spietati!`
-        : activeVoice.id === 'if_sara'
-        ? `Buongiorno bestie!... Oggi ${targetCalories} calorie e ${targetProtein}g di proteine... Spacchiamo tutto insieme!`
-        : `Buongiorno! Oggi hai un budget di ${targetCalories} calorie e ${targetProtein}g di proteine... Costanza e disciplina!`));
-
-    try {
-      await AsyncStorage.setItem(cacheKey, result);
-    } catch {}
-
-    return result;
+      const generated = await this.callGeminiQuick(prompt);
+      const encouragement = generated && generated.length <= 120 && generated.split(/\s+/).length <= 8
+        && !/\d|calori|kcal|prote|gram|kalori|卡路里|蛋白|キロカロリー|タンパク/iu.test(generated)
+        ? generated : briefingEncouragement(activeVoice.id, language);
+      const text = cleanSpokenText(`${facts} ${encouragement}`);
+      try {
+        // Keep one current record, rather than growing storage on every meal or step sync.
+        await AsyncStorage.setItem(MORNING_BRIEFING_CACHE_KEY, JSON.stringify({ key, text }));
+      } catch {}
+      return text;
+    })().finally(() => {
+      if (this.morningBriefingRequests.get(key) === request) this.morningBriefingRequests.delete(key);
+    });
+    this.morningBriefingRequests.set(key, request);
+    return request;
   }
 
   // ==========================================

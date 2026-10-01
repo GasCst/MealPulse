@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { calculateCalorieBudget } from '@/services/briefingContext';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -39,8 +40,9 @@ export const CalorieProgressRing: React.FC<HeroCalorieCardProps> = ({
 }) => {
   const { colors, isDarkMode } = useTheme();
   const { t } = useLanguage();
-  const effectiveBurned = includeBurnedInBudget ? burnedCalories : 0;
-  const kcalLeft = Math.max(0, targetCalories - eatenCalories + effectiveBurned);
+  const { effectiveTarget, remainingCalories: kcalLeft } = calculateCalorieBudget(
+    targetCalories, eatenCalories, burnedCalories, includeBurnedInBudget
+  );
 
   const size = 156;
   const strokeWidth = 11;
@@ -62,7 +64,6 @@ export const CalorieProgressRing: React.FC<HeroCalorieCardProps> = ({
   const effectiveTargetFat = 70;
 
   useEffect(() => {
-    const effectiveTarget = includeBurnedInBudget ? targetCalories + burnedCalories : targetCalories;
     const targetPct = Math.min(1, Math.max(0, eatenCalories / (effectiveTarget || 1)));
 
     progressShared.value = withTiming(targetPct, {
@@ -81,7 +82,7 @@ export const CalorieProgressRing: React.FC<HeroCalorieCardProps> = ({
     carbProgress.value = withTiming(cPct, { duration: 900, easing: Easing.out(Easing.cubic) });
     proteinProgress.value = withTiming(pPct, { duration: 900, easing: Easing.out(Easing.cubic) });
     fatProgress.value = withTiming(fPct, { duration: 900, easing: Easing.out(Easing.cubic) });
-  }, [eatenCalories, targetCalories, burnedCalories, includeBurnedInBudget, kcalLeft, carbLeft, proteinLeft, fatLeft]);
+  }, [eatenCalories, effectiveTarget, kcalLeft, carbLeft, proteinLeft, fatLeft]);
 
   useAnimatedReaction(
     () => Math.round(countShared.value),

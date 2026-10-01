@@ -1,5 +1,5 @@
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -8,25 +8,27 @@ import { useTheme } from '@/context/ThemeContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useVoiceAction } from '@/hooks/useVoiceAction';
 import { useLanguage } from '@/context/LanguageContext';
-import { voiceCoachService } from '@/services/voiceCoachService';
-import { ModelVoiceItem } from '@/components/VoiceSelectorModal';
+import { voiceCoachService, DEFAULT_COACH_VOICE } from '@/services/voiceCoachService';
+import type { ModelVoiceItem } from '@/components/VoiceSelectorModal';
+import { briefingContextKey, morningBriefingFacts, type MorningBriefingSnapshot } from '@/services/briefingContext';
 import { VoiceFeatureAdModal } from './VoiceFeatureAdModal';
 
-interface MorningBriefingCardProps {
-  targetCalories: number;
-  targetProtein: number;
-}
+type MorningBriefingCardProps = MorningBriefingSnapshot;
 
 export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
   targetCalories,
-  targetProtein,
+  eatenCalories,
+  burnedCalories,
+  proteinLeft,
+  includeBurnedInBudget,
+  dateKey,
 }) => {
   const { colors, isDarkMode } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isPro, openPaywall } = useSubscription();
   const { isPlaying, isLoading, run: runBriefing } = useVoiceAction('briefing');
   const [coachVoice, setCoachVoice] = useState<ModelVoiceItem | null>(null);
-  const [briefingText, setBriefingText] = useState<string>('');
+  const [briefing, setBriefing] = useState<{ key: string; text: string } | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
 
@@ -35,28 +37,42 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
   const waveAnim3 = useRef(new RNAnimated.Value(0.4)).current;
   const waveAnim4 = useRef(new RNAnimated.Value(0.7)).current;
 
-  const currentVoiceIdRef = useRef<string | null>(null);
+  const snapshot = useMemo(() => ({ dateKey, targetCalories, eatenCalories, burnedCalories, proteinLeft, includeBurnedInBudget }),
+    [dateKey, targetCalories, eatenCalories, burnedCalories, proteinLeft, includeBurnedInBudget]);
+  const request = useMemo(() => {
+    const voice = coachVoice || DEFAULT_COACH_VOICE;
+    return { snapshot, voice, language, key: briefingContextKey(snapshot, voice.id, language) };
+  }, [snapshot, coachVoice, language]);
+  const latestRequest = useRef(request);
+  latestRequest.current = request;
+  const mounted = useRef(true);
+  const previousKey = useRef<string | null>(null);
+  const briefingText = briefing?.key === request.key ? briefing.text : '';
 
   useEffect(() => {
-    const unsubVoice = voiceCoachService.subscribePreferredVoice((voice) => {
-      setCoachVoice(voice);
-      if (currentVoiceIdRef.current !== voice.id) {
-        currentVoiceIdRef.current = voice.id;
-        setBriefingText('');
-        voiceCoachService
-          .getMorningBriefing(targetCalories || 2100, targetProtein || 140, voice)
-          .then((text) => {
-            if (text) setBriefingText(text);
-          })
-          .catch(() => {});
-      }
-    });
-
-
+    mounted.current = true;
+    const unsubVoice = voiceCoachService.subscribePreferredVoice(setCoachVoice);
     return () => {
+      mounted.current = false;
       unsubVoice();
     };
-  }, [targetCalories, targetProtein]);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (previousKey.current && previousKey.current !== request.key) {
+      // Cancel stale briefing audio without interrupting another voice feature.
+      void voiceCoachService.stopAudio('briefing');
+    }
+    previousKey.current = request.key;
+    voiceCoachService.getMorningBriefing(request.snapshot, request.voice, request.language)
+      .then(text => {
+        if (!cancelled && mounted.current && latestRequest.current.key === request.key) {
+          setBriefing({ key: request.key, text });
+        }
+      }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [request]);
 
   // Equalizer wave animation when playing
   useEffect(() => {
@@ -91,23 +107,21 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
     return () => {
       anim?.stop();
     };
-  }, [isPlaying]);
+  }, [isPlaying, waveAnim1, waveAnim2, waveAnim3, waveAnim4]);
 
   const startBriefingPlayback = () => runBriefing(async () => {
     try {
-      const activeVoice = coachVoice || (await voiceCoachService.getPreferredCoachVoice());
-      let text = briefingText;
-      if (!text) {
-        text = await voiceCoachService.getMorningBriefing(
-          targetCalories || 2100,
-          targetProtein || 140,
-          activeVoice
-        );
-        setBriefingText(text);
+      // Read current data after the ad and recheck it after asynchronous preparation.
+      while (mounted.current) {
+        const current = latestRequest.current;
+        const text = await voiceCoachService.getMorningBriefing(current.snapshot, current.voice, current.language);
+        if (!mounted.current) return;
+        if (latestRequest.current.key !== current.key) continue;
+        setBriefing({ key: current.key, text });
+        setIsExpanded(true);
+        await voiceCoachService.playSpeech(text, current.voice.id, 'briefing', current.language);
+        return;
       }
-
-      setIsExpanded(true);
-      await voiceCoachService.playSpeech(text, activeVoice.id, 'briefing');
     } catch (e) {
       console.warn('[MorningBriefing] Play error:', e);
     }
@@ -178,7 +192,7 @@ export const MorningBriefingCard: React.FC<MorningBriefingCardProps> = ({
           <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={isExpanded ? 4 : 1}>
             {isLoading ? t('voice_loading_hint') : briefingText
               ? briefingText
-              : `Ascolta il riassunto di oggi (${targetCalories || 2100} kcal) dal tuo coach.`}
+              : morningBriefingFacts(snapshot, request.voice.id, language)}
           </Text>
         </TouchableOpacity>
 
