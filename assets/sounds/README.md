@@ -1,7 +1,8 @@
 # Button sound palette
 
-All 16 WAVs are original MealPulse sounds with no third-party samples. They share
-a soft, rounded tone, using mono 44.1 kHz PCM 16-bit audio. Step controls are short
+All 104 WAVs are original MealPulse sounds with no third-party samples, external
+licenses or paid assets. They use mono 44.1 kHz PCM 16-bit audio. The original
+16 classic cues share a soft, rounded tone. Step controls are short
 and quiet; important actions use longer melodic cues at a moderately higher volume.
 
 | Cue | Used for | Duration | Playback volume |
@@ -34,7 +35,7 @@ Android uses a native SoundPool with eight short-sample streams. Metro's bundled
 raw WAV resources are kept uncompressed for direct loading; no network is needed.
 The pool uses media volume without requesting audio focus. iOS, web, Expo Go and
 development builds without packaged raw resources use Expo players, with commands
-serialized per category. A failed playback is retried, recreating a failed Expo
+serialized per selected sample (including categories that share an effect). A failed playback is retried, recreating a failed Expo
 player or falling back from the native pool. Muting/releasing cancels pending cues.
 Neither backend stops TTS playback or changes the shared audio mode.
 
@@ -44,3 +45,26 @@ These cues indicate the pressed action, not proof that a remote operation succee
 Regenerate the 15 new cues with `python3 tools/generate_button_sounds.py`.
 The original default soft-pop WAV is retained. App code and assets follow the
 repository license.
+
+## Custom themes
+
+The 11 additional packs each contain eight short motifs: tap, rising, falling,
+confirmation, completion, deletion, scanner and three-note voice call. Together
+with the original 16 samples this gives 12 themes and 104 distinct effects, about
+1.8 MB of bundled PCM audio. Durations range from 45 to 370 ms. Peaks are normalized
+below clipping; the existing per-action volumes stay in place for all themes.
+
+Themes: minimal soft tones, nature chirps, water bubbles, Christmas bells,
+Halloween, horror, space, arcade, cartoon boings, lip raspberries and low fart buzzes.
+No copyrighted melodies or recordings are used. Users can mix any samples across
+all 16 action categories, follow the selected theme, or silence a category.
+
+Only the selected palette is preloaded. Up to 24 decoded samples are retained;
+obsolete preview samples are unloaded. Changing themes cancels old queued sounds.
+Android resource identifiers are explicitly listed in `constants/buttonSounds.ts`
+and checked against the release bundle. The global mute preference is unchanged.
+
+Run `python3 tools/generate_sound_themes.py` to regenerate the 88 extra WAVs and
+static catalog deterministically. All source and generated assets are checked in.
+Sound customization is included with PRO; otherwise each non-default change needs
+one completed rewarded video. Previewing and restoring defaults are free.

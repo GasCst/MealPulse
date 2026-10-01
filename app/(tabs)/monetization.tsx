@@ -21,6 +21,8 @@ import { voiceCoachService, DEFAULT_COACH_VOICE } from '@/services/voiceCoachSer
 import { VoiceFeatureAdModal } from '@/components/VoiceFeatureAdModal';
 import { useVoiceAction } from '@/hooks/useVoiceAction';
 import { useButtonSounds } from '@/hooks/useButtonSounds';
+import { ButtonSoundSettingsModal } from '@/components/ButtonSoundSettingsModal';
+import { SOUND_THEMES } from '@/constants/buttonSounds';
 
 export default function MonetizationScreen() {
   const {
@@ -58,7 +60,8 @@ export default function MonetizationScreen() {
   const [activeCoachVoice, setActiveCoachVoice] = useState<ModelVoiceItem>(DEFAULT_COACH_VOICE);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const { isPlaying: isPlayingCoachVoice, isLoading: isLoadingCoachVoice, run: runPreview } = useVoiceAction('preview');
-  const { enabled: buttonSounds, setEnabled: setButtonSounds } = useButtonSounds();
+  const { enabled: buttonSounds, preferences: soundPreferences, setEnabled: setButtonSounds } = useButtonSounds();
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [showVoiceAdModal, setShowVoiceAdModal] = useState(false);
   const [pendingSelectedVoice, setPendingSelectedVoice] = useState<ModelVoiceItem | null>(null);
 
@@ -514,6 +517,16 @@ export default function MonetizationScreen() {
             </View>
             <CustomToggle isOn={buttonSounds} onToggle={() => { void setButtonSounds(!buttonSounds); }} />
           </View>
+          <TouchableOpacity sound="open" onPress={() => setShowSoundSettings(true)}
+            accessibilityLabel={t('sound_customize')} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, paddingVertical: 10 }}>
+            <Ionicons name="options-outline" size={20} color={theme.limeDeep} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: theme.textPrimary }]}>{t('sound_customize')}</Text>
+              <Text style={[styles.rowHelp, { color: theme.textMuted }]}>{t(SOUND_THEMES.find(item => item.id === soundPreferences.theme)!.label)} · {t('sound_catalog_size')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.textSoft} />
+          </TouchableOpacity>
+          <ButtonSoundSettingsModal visible={showSoundSettings} onClose={() => setShowSoundSettings(false)} />
         </View>
 
         {/* AI Recognition Settings */}

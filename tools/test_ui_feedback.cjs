@@ -88,13 +88,27 @@ test('wrappers forward the chosen category and native switches distinguish on fr
   assert.deepEqual(played, ['confirm', 'toggle-on', 'toggle-off']);
 });
 
-function soundFixture({ preference = null, gate = null, native = null, failedLoads = 0, failedReplays = 0, replayGate = null, stopGate = null } = {}) {
+function soundCatalog() {
+  const assets = Object.fromEntries(fs.readdirSync(path.join(root, 'assets/sounds')).filter(name => name.endsWith('.wav')).map(name => [`@/assets/sounds/${name}`, name]));
+  return load('constants/buttonSounds.ts', assets);
+}
+
+function soundFixture({ preference = null, customization = null, preferenceGate = null, failedWrites = 0, gate = null, native = null, failedLoads = 0, failedReplays = 0, replayGate = null, stopGate = null } = {}) {
   let clock = 1000;
-  const saved = { value: preference };
+  const saved = { value: preference, customization, writes: [] };
   const players = [];
   const assets = Object.fromEntries(fs.readdirSync(path.join(root, 'assets/sounds')).filter(name => name.endsWith('.wav')).map(name => [`@/assets/sounds/${name}`, name]));
   const { buttonSoundService: service, BUTTON_SOUNDS } = load('services/buttonSoundService.ts', {
-    '@react-native-async-storage/async-storage': { getItem: async () => saved.value, setItem: async (_, value) => { saved.value = value; } },
+    '@react-native-async-storage/async-storage': {
+      getItem: async key => { if (preferenceGate) await preferenceGate.promise; return key.endsWith('customization_v1') ? saved.customization : saved.value; },
+      setItem: async (key, value) => {
+        if (failedWrites-- > 0) throw new Error('Storage full');
+        saved.writes.push({ key, value });
+        if (key.endsWith('customization_v1')) saved.customization = value;
+        else saved.value = value;
+      },
+    },
+    '@/constants/buttonSounds': soundCatalog(),
     'react-native': { Platform: { OS: 'android' }, NativeModules: native ? { MealPulseButtonSounds: native } : {} },
     'expo-av': { Audio: { Sound: { createAsync: async (asset, options) => {
       assert.equal(options.shouldPlay, false);
@@ -271,9 +285,9 @@ test('a delayed mute stop cannot interrupt a newer unmuted cue', async () => {
   await f.service.release();
 });
 
-function nativeFixture({ gate = null, failPlay = false, failLoad = false } = {}) {
+function nativeFixture({ gate = null, failPlay = false, failLoad = false, customization = null } = {}) {
   const native = {
-    loads: [], plays: [], enabled: [], releases: 0,
+    loads: [], plays: [], enabled: [], releases: 0, unloads: [],
     async load(kind, resourceName) {
       this.loads.push({ kind, resourceName });
       if (gate) await gate.promise;
@@ -284,9 +298,10 @@ function nativeFixture({ gate = null, failPlay = false, failLoad = false } = {})
       this.plays.push({ kind, volume });
     },
     setEnabled(enabled) { this.enabled.push(enabled); },
+    unload(effect) { this.unloads.push(effect); },
     release() { this.releases++; },
   };
-  return { ...soundFixture({ native }), native };
+  return { ...soundFixture({ native, customization }), native };
 }
 
 test('Android preloads all native PCM resources once and plays every rapid press', async () => {
@@ -337,7 +352,7 @@ test('development builds without native raw assets keep working with Expo player
 test('all cue assets are distinct short PCM waves without clipping', () => {
   const files = fs.readdirSync(path.join(root, 'assets/sounds')).filter(name => name.endsWith('.wav'));
   const hashes = new Set();
-  assert.equal(files.length, 16);
+  assert.equal(files.length, 104);
   for (const file of files) {
     const data = fs.readFileSync(path.join(root, 'assets/sounds', file));
     assert.equal(data.toString('ascii', 0, 4), 'RIFF');
@@ -347,13 +362,259 @@ test('all cue assets are distinct short PCM waves without clipping', () => {
     assert.equal(data.readUInt32LE(24), 44100);
     assert.equal(data.readUInt16LE(34), 16);
     const samples = data.readUInt32LE(40) / 2;
-    assert.ok(samples / 44100 <= 0.35);
+    assert.ok(samples / 44100 <= 0.4);
     assert.equal(data.readInt16LE(44), 0);
     assert.ok(Math.abs(data.readInt16LE(44 + (samples - 1) * 2)) < 10);
     for (let i = 0; i < samples; i++) assert.ok(Math.abs(data.readInt16LE(44 + i * 2)) < 20000);
     hashes.add(crypto.createHash('sha256').update(data).digest('hex'));
   }
   assert.equal(hashes.size, files.length);
+});
+
+test('restored custom theme routes the very first press without loading the whole library', async () => {
+  const f = soundFixture({ customization: JSON.stringify({ theme: 'space', overrides: { voice: 'christmas-voice' } }) });
+  f.service.play('voice');
+  await tick(); await tick();
+  assert.equal(f.players.length, 1);
+  assert.equal(f.players[0].asset, 'christmas-voice.wav');
+  assert.equal(f.players[0].plays.length, 1);
+  await f.service.initialize();
+  assert.equal(f.players.length, 8);
+  await f.service.release();
+});
+
+test('theme selection resets overrides, individual changes persist, and following theme restores its sound', async () => {
+  const f = soundFixture(); await f.service.initialize();
+  await f.service.setOverride('confirm', 'fart-complete');
+  f.service.play('confirm'); await tick();
+  assert.equal(f.players.find(p => p.asset === 'fart-complete.wav').plays[0].volume, .40);
+  assert.equal(JSON.parse(f.saved.customization).overrides.confirm, 'fart-complete');
+  await f.service.setTheme('christmas');
+  assert.equal(Object.keys(f.service.getPreferences().overrides).length, 0);
+  f.service.play('confirm'); await tick();
+  assert.equal(f.players.find(p => p.asset === 'christmas-confirm.wav').plays.length, 1);
+  await f.service.setOverride('voice', 'silent'); f.service.play('voice'); await tick();
+  assert.equal(f.players.find(p => p.asset === 'christmas-voice.wav').plays.length, 0);
+  await f.service.setOverride('voice'); f.service.play('voice'); await tick();
+  assert.equal(f.players.find(p => p.asset === 'christmas-voice.wav').plays.length, 1);
+  await f.service.release();
+});
+
+test('preview is free of preference mutations and obeys mute', async () => {
+  const f = soundFixture(); await f.service.initialize();
+  assert.equal(await f.service.preview('comic-complete'), true);
+  assert.equal(f.saved.writes.length, 0);
+  assert.equal(f.service.getPreferences().theme, 'classic');
+  await f.service.setEnabled(false);
+  assert.equal(await f.service.preview('horror-complete'), false);
+  assert.equal(f.players.some(p => p.asset === 'horror-complete.wav'), false);
+  await f.service.release();
+});
+
+test('corrupt and obsolete stored preferences recover to supported sounds', async () => {
+  for (const customization of ['{broken', JSON.stringify({ theme: 'unknown', overrides: { confirm: 'missing', voice: 'silent', invalid: 'space-tap' } })]) {
+    const f = soundFixture({ customization }); await f.service.initialize();
+    assert.equal(f.service.getPreferences().theme, 'classic');
+    assert.equal(f.service.getPreferences().overrides.confirm, undefined);
+    f.service.play('confirm'); await tick();
+    assert.equal(f.players.find(p => p.asset === 'confirm.wav').plays.length, 1);
+    await f.service.release();
+  }
+});
+
+test('first mute change preserves stored customization while preferences are still loading', async () => {
+  const preferenceGate = deferred();
+  const f = soundFixture({ preferenceGate, customization: JSON.stringify({ theme: 'nature', overrides: {} }) });
+  const mute = f.service.setEnabled(false);
+  preferenceGate.resolve(); await mute;
+  assert.equal(f.service.getPreferences().theme, 'nature');
+  assert.equal(f.service.getEnabled(), false);
+  await f.service.setEnabled(true); f.service.play('confirm'); await tick();
+  assert.equal(f.players.find(p => p.asset === 'nature-confirm.wav').plays.length, 1);
+  await f.service.release();
+});
+
+test('categories sharing a customized sample serialize commands and retain their different importance', async () => {
+  const replayGate = deferred();
+  const f = soundFixture({ replayGate, customization: JSON.stringify({ theme: 'comic', overrides: { confirm: 'comic-up' } }) });
+  await f.service.initialize(); f.service.play('increment'); f.service.play('confirm'); await tick();
+  const player = f.players.find(p => p.asset === 'comic-up.wav');
+  assert.equal(player.replayCalls, 1);
+  replayGate.resolve(); await tick();
+  assert.equal(player.plays.length, 2); assert.equal(player.maxInFlight, 1);
+  assert.ok(player.plays[0].volume < player.plays[1].volume);
+  await f.service.release();
+});
+
+test('a theme change cancels queued cues from the old theme', async () => {
+  const replayGate = deferred(); const f = soundFixture({ replayGate });
+  await f.service.initialize(); f.service.play('confirm'); f.service.play('confirm'); await tick();
+  await f.service.setTheme('arcade'); replayGate.resolve(); await tick();
+  assert.equal(f.players.find(p => p.asset === 'confirm.wav').plays.length, 1);
+  f.service.play('confirm'); await tick();
+  assert.equal(f.players.find(p => p.asset === 'arcade-confirm.wav').plays.length, 1);
+  await f.service.release();
+});
+
+test('failed persistence rolls back the choice and reports failure', async () => {
+  const f = soundFixture({ failedWrites: 1 }); await f.service.initialize();
+  await assert.rejects(f.service.setTheme('water'), /Storage full/);
+  assert.equal(f.service.getPreferences().theme, 'classic');
+  f.service.play('confirm'); await tick();
+  assert.equal(f.players.find(p => p.asset === 'confirm.wav').plays.length, 1);
+  await f.service.release();
+});
+
+test('browsing many previews keeps decoded players bounded and retains the active theme', async () => {
+  const f = soundFixture(); await f.service.initialize();
+  const catalog = soundCatalog();
+  for (const effect of Object.keys(catalog.SOUND_EFFECTS).slice(16, 64)) await f.service.preview(effect);
+  assert.ok(f.players.filter(p => !p.unloads).length <= 24);
+  assert.equal(f.players.find(p => p.asset === 'confirm.wav').unloads, 0);
+  await f.service.release(); assert.ok(f.players.every(p => p.unloads === 1));
+});
+
+test('native Android uses the selected effect resource and bounds the preview cache', async () => {
+  const f = nativeFixture({ customization: JSON.stringify({ theme: 'halloween', overrides: {} }) });
+  await f.service.initialize(); assert.equal(f.native.loads.length, 8);
+  f.service.play('voice'); await tick();
+  assert.equal(f.native.plays[0].kind, 'halloween-voice');
+  assert.equal(f.native.loads.find(p => p.kind === 'halloween-voice').resourceName, 'assets_sounds_halloweenvoice');
+  for (const effect of Object.keys(soundCatalog().SOUND_EFFECTS).slice(16, 64)) await f.service.preview(effect);
+  assert.ok(f.native.unloads.length > 0); assert.equal(f.players.length, 0);
+  await f.service.release();
+});
+
+function accessModule() {
+  return load('services/soundCustomizationAccess.ts', { '@/constants/buttonSounds': soundCatalog() });
+}
+
+test('only PRO skips rewarded ads; every non-default change is gated, defaults are free', () => {
+  const { soundChangeNeedsReward: needs } = accessModule();
+  const classic = { theme: 'classic', overrides: {} };
+  assert.equal(needs({ type: 'theme', theme: 'christmas' }, classic, false), true);
+  assert.equal(needs({ type: 'theme', theme: 'christmas' }, classic, true), false);
+  assert.equal(needs({ type: 'theme', theme: 'classic' }, classic, false), false);
+  assert.equal(needs({ type: 'action', kind: 'confirm', choice: 'fart-complete' }, classic, false), true);
+  assert.equal(needs({ type: 'action', kind: 'confirm', choice: 'horror-confirm' }, { theme: 'fart', overrides: {} }, false), true);
+  assert.equal(needs({ type: 'action', kind: 'confirm', choice: 'confirm' }, { theme: 'fart', overrides: {} }, false), false);
+  assert.equal(needs({ type: 'action', kind: 'confirm', choice: 'silent' }, classic, false), true);
+  assert.equal(needs({ type: 'action', kind: 'confirm' }, classic, false), false);
+  assert.equal(needs({ type: 'action', kind: 'confirm' }, { theme: 'water', overrides: {} }, false), true);
+});
+
+function rewardFixture({ showFailure = false, timeoutMs = 1000 } = {}) {
+  const callbacks = new Map(); const abort = new AbortController(); const statuses = [];
+  const ad = { loads: 0, shows: 0, listeners: 0,
+    addAdEventListener(name, fn) { callbacks.set(name, fn); this.listeners++; return () => { callbacks.delete(name); this.listeners--; }; },
+    load() { this.loads++; },
+    async show() { this.shows++; if (showFailure) throw new Error('No ad'); },
+  };
+  const { earnSoundChangeReward } = accessModule();
+  const task = earnSoundChangeReward(ad, { loaded: 'loaded', earned: 'earned', closed: 'closed', error: 'error' }, abort.signal, s => statuses.push(s), timeoutMs);
+  return { ad, abort, task, statuses, emit: name => callbacks.get(name)?.() };
+}
+
+test('reward unlock occurs only after a shown ad earns a reward and closes, once', async () => {
+  const f = rewardFixture(); f.emit('loaded'); f.emit('loaded'); f.emit('earned');
+  let resolved = false; void f.task.then(() => { resolved = true; }); await tick();
+  assert.equal(resolved, false); assert.equal(f.ad.shows, 1);
+  f.emit('closed'); assert.equal(await f.task, true); assert.equal(f.ad.listeners, 0);
+  f.emit('closed'); assert.equal(f.ad.shows, 1);
+  const next = rewardFixture(); next.emit('loaded'); next.emit('closed'); assert.equal(await next.task, false);
+});
+
+test('skipped, failed, timed-out or cancelled ads never unlock a sound change', async () => {
+  for (const scenario of ['skip', 'error', 'cancel', 'showFailure', 'timeout', 'fakeReward']) {
+    const f = rewardFixture({ showFailure: scenario === 'showFailure', timeoutMs: scenario === 'timeout' ? 5 : 1000 });
+    if (scenario === 'skip') { f.emit('loaded'); f.emit('closed'); }
+    if (scenario === 'error') f.emit('error');
+    if (scenario === 'cancel') { f.abort.abort(); f.emit('loaded'); f.emit('earned'); f.emit('closed'); }
+    if (scenario === 'showFailure') f.emit('loaded');
+    if (scenario === 'fakeReward') { f.emit('earned'); f.emit('closed'); }
+    assert.equal(await f.task, false, scenario); assert.equal(f.ad.listeners, 0);
+  }
+});
+
+test('all themes cover all action types and every label is translated in seven languages', () => {
+  const catalog = soundCatalog();
+  const translations = load('constants/soundTranslations.ts', {}).SOUND_TRANSLATIONS;
+  assert.equal(catalog.SOUND_THEMES.length, 12); assert.equal(Object.keys(catalog.SOUND_EFFECTS).length, 104);
+  const expectedKeys = Object.keys(translations.it).sort();
+  for (const dictionary of Object.values(translations)) assert.deepEqual(Object.keys(dictionary).sort(), expectedKeys);
+  for (const theme of catalog.SOUND_THEMES) {
+    for (const kind of catalog.BUTTON_SOUND_KINDS) assert.ok(catalog.SOUND_EFFECTS[theme.cues[kind]]);
+    for (const dictionary of Object.values(translations)) assert.ok(dictionary[theme.label]);
+  }
+  for (const effect of Object.values(catalog.SOUND_EFFECTS)) {
+    for (const dictionary of Object.values(translations)) assert.ok(dictionary[effect.label]);
+  }
+});
+
+function settingsFixture({ pro = false, initialTheme = 'classic' } = {}) {
+  let preferences = { theme: initialTheme, overrides: {} }, enabled = true, cursor = 0, tree, visible = true;
+  const slots = [], applied = [], previews = [], ads = [], effects = [];
+  const react = {
+    Fragment: 'Fragment', createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
+    useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial;
+      return [slots[i], value => { slots[i] = typeof value === 'function' ? value(slots[i]) : value; }]; },
+    useRef(initial) { const i = cursor++; if (!(i in slots)) slots[i] = { current: initial }; return slots[i]; },
+    useEffect(fn, deps) { const i = cursor++, previous = slots[i];
+      if (!previous || deps.some((value, j) => value !== previous.deps[j])) effects.push(() => { previous?.cleanup?.(); slots[i] = { deps, cleanup: fn() }; }); },
+  };
+  const catalog = soundCatalog();
+  const dict = load('constants/soundTranslations.ts', {}).SOUND_TRANSLATIONS.en;
+  const { ButtonSoundSettingsModal } = load('components/ButtonSoundSettingsModal.tsx', {
+    react, 'react-native': { ActivityIndicator: 'Spinner', Modal: 'Modal', ScrollView: 'Scroll', Text: 'Text', View: 'View', StyleSheet: { create: x => x } },
+    'react-native-safe-area-context': { SafeAreaView: 'SafeArea' }, '@expo/vector-icons': { Ionicons: 'Icon' },
+    '@/components/ui/FeedbackPressable': { TouchableOpacity: 'Button', Switch: 'Switch' },
+    '@/hooks/useButtonSounds': { useButtonSounds: () => ({ enabled, preferences, setEnabled: async value => { enabled = value; } }) },
+    '@/context/LanguageContext': { useLanguage: () => ({ t: key => dict[key] || key }) },
+    '@/context/ThemeContext': { useTheme: () => ({ colors: {}, isDarkMode: false }) },
+    '@/context/SubscriptionContext': { useSubscription: () => ({ isPro: pro, openPaywall() {} }) },
+    '@/services/buttonSoundService': { buttonSoundService: {
+      async preview(effect) { previews.push(effect); return true; },
+      async setTheme(theme) { applied.push({ theme }); preferences = { theme, overrides: {} }; },
+      async setOverride(kind, choice) { applied.push({ kind, choice }); preferences = { ...preferences, overrides: { ...preferences.overrides, [kind]: choice } }; },
+    } },
+    '@/services/soundCustomizationAccess': accessModule(),
+    '@/services/soundRewardService': { watchSoundRewardAd: (signal, onStatus) => { const gate = deferred(); ads.push({ ...gate, signal }); onStatus('loading'); return gate.promise; } },
+    '@/constants/buttonSounds': catalog,
+  });
+  function render() { cursor = 0; tree = ButtonSoundSettingsModal({ visible, onClose: () => { visible = false; } }); effects.splice(0).forEach(fn => fn()); }
+  function nodes(value) { if (Array.isArray(value)) return value.flatMap(nodes); if (!value || typeof value !== 'object') return [];
+    return [value, ...nodes(value.props?.children)]; }
+  const content = value => nodes(value).filter(n => n.type === 'Text').map(n => (n.props.children || []).filter(x => typeof x === 'string').join('')).join(' ');
+  function press(label) { const node = nodes(tree).find(n => n.type === 'Button' && (n.props.accessibilityLabel === label || content(n) === label));
+    assert.ok(node, `Missing button: ${label}`); assert.equal(!!node.props.disabled, false); node.props.onPress(); render(); }
+  render(); return { render, press, applied, previews, ads, preferences: () => preferences };
+}
+
+test('PRO applies a chosen theme directly; free preview does not change the setting', async () => {
+  const pro = settingsFixture({ pro: true }); pro.press('Apply theme: Christmas'); await tick(); pro.render();
+  assert.equal(pro.applied[0].theme, 'christmas'); assert.equal(pro.ads.length, 0);
+  const free = settingsFixture(); free.press('Preview: Christmas · Little finale'); await tick(); free.render();
+  assert.equal(free.previews.length, 1); assert.equal(free.applied.length, 0); assert.equal(free.ads.length, 0);
+});
+
+test('free users must earn a fresh reward for each change; failed ads never apply it', async () => {
+  const f = settingsFixture(); f.press('Apply theme: Christmas'); assert.equal(f.applied.length, 0);
+  f.press('Watch an ad and apply'); f.ads[0].resolve(false); await tick(); f.render(); assert.equal(f.applied.length, 0);
+  f.press('Watch an ad and apply'); f.ads[1].resolve(true); await tick(); f.render(); assert.equal(f.preferences().theme, 'christmas');
+  f.press('Apply theme: Space'); assert.equal(f.applied.length, 1);
+  f.press('Watch an ad and apply'); f.ads[2].resolve(true); await tick(); f.render(); assert.equal(f.preferences().theme, 'space');
+  assert.equal(f.ads.length, 3); assert.equal(f.applied.length, 2);
+});
+
+test('closing sound settings cancels an in-flight ad and ignores a delayed reward', async () => {
+  const f = settingsFixture(); f.press('Apply theme: Horror'); f.press('Watch an ad and apply'); f.press('Close');
+  assert.equal(f.ads[0].signal.aborted, true); f.ads[0].resolve(true); await tick(); f.render();
+  assert.equal(f.applied.length, 0);
+});
+
+test('restoring defaults is free and resets the selected theme', async () => {
+  const f = settingsFixture({ initialTheme: 'space' }); f.press('Restore default sounds'); await tick(); f.render();
+  assert.equal(f.preferences().theme, 'classic'); assert.equal(f.ads.length, 0);
 });
 
 function buttonAttributes(file) {

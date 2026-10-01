@@ -112,7 +112,7 @@ class ButtonSoundsModule(private val context: ReactApplicationContext) : ReactCo
           val stream = current.play(sampleId, level, level, 1, 0, 1f)
           if (stream != 0) {
             streams.addLast(stream)
-            // Samples last at most 330 ms. Keep only recent IDs for mute cleanup.
+            // Short UI samples. Keep only recent IDs for mute cleanup.
             while (streams.size > 64) streams.removeFirst()
             promise.resolve(null)
           } else if (retry) {
@@ -125,6 +125,13 @@ class ButtonSoundsModule(private val context: ReactApplicationContext) : ReactCo
         }
       }
       start(true)
+    }
+  }
+
+  @ReactMethod
+  fun unload(kind: String) {
+    handler.post {
+      samples.remove(kind)?.let { pool?.unload(it) }
     }
   }
 

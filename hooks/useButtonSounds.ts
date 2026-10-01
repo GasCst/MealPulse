@@ -3,6 +3,8 @@ import { buttonSoundService } from '@/services/buttonSoundService';
 
 export function useButtonSounds() {
   const [enabled, setEnabled] = useState(buttonSoundService.getEnabled());
+  const [preferences, setPreferences] = useState(buttonSoundService.getPreferences());
   useEffect(() => buttonSoundService.subscribe(setEnabled), []);
-  return { enabled, setEnabled: (value: boolean) => buttonSoundService.setEnabled(value) };
+  useEffect(() => buttonSoundService.subscribePreferences(setPreferences), []);
+  return { enabled, preferences, setEnabled: (value: boolean) => buttonSoundService.setEnabled(value) };
 }

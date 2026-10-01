@@ -2,35 +2,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { NativeModules, Platform } from 'react-native';
 
+import {
+  BUTTON_SOUNDS, BUTTON_SOUND_KINDS, SOUND_EFFECTS, SOUND_THEMES,
+  DEFAULT_SOUND_PREFERENCES, resolveButtonSound, sanitizeSoundPreferences,
+  type ButtonSoundKind, type ButtonSoundPreferences, type SoundEffectId, type SoundThemeId, type SoundChoice,
+} from '@/constants/buttonSounds';
+
+export { BUTTON_SOUNDS, type ButtonSoundKind } from '@/constants/buttonSounds';
 const SOUND_PREFERENCE_KEY = '@mealpulse_button_sounds';
-
-// Static requires let Metro bundle every local sound for offline playback.
-export const BUTTON_SOUNDS = {
-  tap: { asset: require('@/assets/sounds/soft-pop.wav'), volume: 0.28 },
-  navigate: { asset: require('@/assets/sounds/navigate.wav'), volume: 0.22 },
-  open: { asset: require('@/assets/sounds/open.wav'), volume: 0.27 },
-  close: { asset: require('@/assets/sounds/close.wav'), volume: 0.22 },
-  select: { asset: require('@/assets/sounds/select.wav'), volume: 0.20 },
-  increment: { asset: require('@/assets/sounds/increment.wav'), volume: 0.17 },
-  decrement: { asset: require('@/assets/sounds/decrement.wav'), volume: 0.17 },
-  confirm: { asset: require('@/assets/sounds/confirm.wav'), volume: 0.40 },
-  complete: { asset: require('@/assets/sounds/complete.wav'), volume: 0.42 },
-  delete: { asset: require('@/assets/sounds/delete.wav'), volume: 0.30 },
-  scan: { asset: require('@/assets/sounds/scan.wav'), volume: 0.32 },
-  voice: { asset: require('@/assets/sounds/voice.wav'), volume: 0.30 },
-  reward: { asset: require('@/assets/sounds/reward.wav'), volume: 0.34 },
-  primary: { asset: require('@/assets/sounds/primary.wav'), volume: 0.35 },
-  'toggle-on': { asset: require('@/assets/sounds/toggle-on.wav'), volume: 0.22 },
-  'toggle-off': { asset: require('@/assets/sounds/toggle-off.wav'), volume: 0.20 },
-} as const;
-
-export type ButtonSoundKind = keyof typeof BUTTON_SOUNDS;
+const CUSTOMIZATION_KEY = '@mealpulse_button_sound_customization_v1';
 
 type NativeButtonSounds = {
   load(kind: string, resourceName: string): Promise<void>;
   play(kind: string, volume: number): Promise<void>;
   setEnabled(enabled: boolean): void;
   release(): void;
+  unload?(effect: string): void;
 };
 
 type LoadedCue = { backend: 'android' } | { backend: 'expo'; sound: Audio.Sound };
@@ -40,11 +27,11 @@ type LoadedCue = { backend: 'android' } | { backend: 'expo'; sound: Audio.Sound 
 class ButtonSoundService {
   private readonly native: NativeButtonSounds | undefined = Platform.OS === 'android'
     ? NativeModules?.MealPulseButtonSounds : undefined;
-  private sounds = new Map<ButtonSoundKind, Audio.Sound>();
-  private nativeReady = new Set<ButtonSoundKind>();
-  private nativeUnavailable = new Set<ButtonSoundKind>();
-  private loads = new Map<ButtonSoundKind, Promise<LoadedCue | null>>();
-  private queues = new Map<ButtonSoundKind, Promise<void>>();
+  private sounds = new Map<SoundEffectId, Audio.Sound>();
+  private nativeReady = new Set<SoundEffectId>();
+  private nativeUnavailable = new Set<SoundEffectId>();
+  private loads = new Map<SoundEffectId, Promise<LoadedCue | null>>();
+  private queues = new Map<SoundEffectId, Promise<void>>();
   private initializing: Promise<void> | null = null;
   private preferenceTask: Promise<void> | null = null;
   private enabled = true;
@@ -53,10 +40,22 @@ class ButtonSoundService {
   private generation = 0;
   private playbackEpoch = 0;
   private seenEvents = new WeakSet<object>();
-  private warned = new Set<ButtonSoundKind>();
+  private warned = new Set<SoundEffectId>();
   private listeners = new Set<(enabled: boolean) => void>();
 
+  private preferences: ButtonSoundPreferences = DEFAULT_SOUND_PREFERENCES;
+  private customizationRevision = 0;
+  private preferenceWrites: Promise<void> = Promise.resolve();
+  private preferenceListeners = new Set<(preferences: ButtonSoundPreferences) => void>();
+
   getEnabled() { return this.enabled; }
+  getPreferences() { return this.preferences; }
+
+  subscribePreferences(listener: (preferences: ButtonSoundPreferences) => void) {
+    this.preferenceListeners.add(listener);
+    listener(this.preferences);
+    return () => { this.preferenceListeners.delete(listener); };
+  }
 
   subscribe(listener: (enabled: boolean) => void) {
     this.listeners.add(listener);
@@ -69,9 +68,18 @@ class ButtonSoundService {
     if (this.preferenceTask) return this.preferenceTask;
     const generation = this.generation;
     const revision = this.preferenceRevision;
-    const task = AsyncStorage.getItem(SOUND_PREFERENCE_KEY).catch(() => null).then(saved => {
+    const customizationRevision = this.customizationRevision;
+    const task = Promise.all([
+      AsyncStorage.getItem(SOUND_PREFERENCE_KEY).catch(() => null),
+      AsyncStorage.getItem(CUSTOMIZATION_KEY).catch(() => null),
+    ]).then(([saved, customization]) => {
       if (generation !== this.generation) return;
       if (revision === this.preferenceRevision) this.enabled = saved !== 'false';
+      if (customizationRevision === this.customizationRevision) {
+        try { this.preferences = sanitizeSoundPreferences(customization ? JSON.parse(customization) : null); }
+        catch { this.preferences = sanitizeSoundPreferences(null); }
+        this.preferenceListeners.forEach(listener => listener(this.preferences));
+      }
       this.preferenceLoaded = true;
       this.native?.setEnabled(this.enabled);
       this.listeners.forEach(listener => listener(this.enabled));
@@ -80,7 +88,7 @@ class ButtonSoundService {
     return task;
   }
 
-  private getCue(kind: ButtonSoundKind, generation: number): Promise<LoadedCue | null> {
+  private getCue(kind: SoundEffectId, generation: number): Promise<LoadedCue | null> {
     if (generation !== this.generation) return Promise.resolve(null);
     const sound = this.sounds.get(kind);
     if (sound) return Promise.resolve({ backend: 'expo', sound });
@@ -90,9 +98,7 @@ class ButtonSoundService {
     const loading = (async (): Promise<LoadedCue | null> => {
       if (this.native && !this.nativeUnavailable.has(kind)) {
         try {
-          // Metro's Android raw-resource names omit hyphens.
-          const filename = kind === 'tap' ? 'softpop' : kind.replace(/-/g, '');
-          await this.native.load(kind, `assets_sounds_${filename}`);
+          await this.native.load(kind, SOUND_EFFECTS[kind].resource);
           if (generation !== this.generation) return null;
           this.nativeReady.add(kind);
           return { backend: 'android' };
@@ -102,7 +108,8 @@ class ButtonSoundService {
           this.nativeUnavailable.add(kind);
         }
       }
-      const { asset, volume } = BUTTON_SOUNDS[kind];
+      const { asset } = SOUND_EFFECTS[kind];
+      const volume = 0.28;
       const { sound: loaded } = await Audio.Sound.createAsync(asset, { shouldPlay: false, volume });
       if (generation !== this.generation) {
         await loaded.unloadAsync().catch(() => {});
@@ -122,7 +129,9 @@ class ButtonSoundService {
     const initializing = (async () => {
       await this.loadPreference();
       if (generation !== this.generation || !this.enabled) return;
-      const kinds = Object.keys(BUTTON_SOUNDS) as ButtonSoundKind[];
+      const kinds = [...new Set(BUTTON_SOUND_KINDS.map(kind => resolveButtonSound(kind, this.preferences)))].filter(
+        (effect): effect is SoundEffectId => effect !== 'silent'
+      );
       for (let start = 0; start < kinds.length; start += 4) {
         if (generation !== this.generation || !this.enabled) return;
         await Promise.allSettled(kinds.slice(start, start + 4).map(kind => this.getCue(kind, generation)));
@@ -134,7 +143,7 @@ class ButtonSoundService {
     return initializing;
   }
 
-  private enqueue(kind: ButtonSoundKind, operation: () => Promise<void>): Promise<void> {
+  private enqueue(kind: SoundEffectId, operation: () => Promise<void>): Promise<void> {
     const previous = this.queues.get(kind) || Promise.resolve();
     const queued = previous.catch(() => {}).then(operation);
     this.queues.set(kind, queued);
@@ -150,43 +159,111 @@ class ButtonSoundService {
       if (this.seenEvents.has(nativeEvent)) return;
       this.seenEvents.add(nativeEvent);
     }
+    void this.playResolved(kind).catch(() => {});
+  }
+
+  // Preview obeys mute and never saves a preference or consumes an ad unlock.
+  preview(effect: SoundEffectId, kind: ButtonSoundKind = 'confirm'): Promise<boolean> {
+    return this.playResolved(kind, effect);
+  }
+
+  private async playResolved(action: ButtonSoundKind, preview?: SoundEffectId): Promise<boolean> {
     const generation = this.generation;
     const epoch = this.playbackEpoch;
     const allowed = () => this.enabled && generation === this.generation && epoch === this.playbackEpoch;
-    // Serialize commands on one player; different categories can finish naturally.
-    void this.enqueue(kind, async () => {
-      await this.loadPreference();
+    await this.loadPreference();
+    if (!allowed()) return false;
+    const effect = preview ?? resolveButtonSound(action, this.preferences);
+    if (effect === 'silent') return false;
+    let played = false;
+    await this.enqueue(effect, async () => {
       if (!allowed()) return;
       for (let attempt = 0; attempt < 2; attempt++) {
         let cue: LoadedCue | null = null;
         try {
-          cue = await this.getCue(kind, generation);
+          cue = await this.getCue(effect, generation);
           if (!cue || !allowed()) return;
-          if (cue.backend === 'android') await this.native!.play(kind, BUTTON_SOUNDS[kind].volume);
-          else await cue.sound.replayAsync({ volume: BUTTON_SOUNDS[kind].volume });
+          // Action importance controls volume even when two categories share a sample.
+          const volume = BUTTON_SOUNDS[action].volume;
+          if (cue.backend === 'android') await this.native!.play(effect, volume);
+          else await cue.sound.replayAsync({ volume });
+          played = true;
           return;
         } catch (error) {
           if (!allowed()) return;
           if (cue?.backend === 'android') {
-            this.nativeReady.delete(kind);
-            this.nativeUnavailable.add(kind);
-          } else if (cue?.backend === 'expo' && this.sounds.get(kind) === cue.sound) {
-            this.sounds.delete(kind);
+            this.nativeReady.delete(effect);
+            this.nativeUnavailable.add(effect);
+          } else if (cue?.backend === 'expo' && this.sounds.get(effect) === cue.sound) {
+            this.sounds.delete(effect);
             await cue.sound.unloadAsync().catch(() => {});
           }
-          if (attempt === 1 && !this.warned.has(kind)) {
-            this.warned.add(kind);
-            console.warn('[ButtonSounds] Unable to play cue:', kind, error);
+          if (attempt === 1 && !this.warned.has(effect)) {
+            this.warned.add(effect);
+            console.warn('[ButtonSounds] Unable to play cue:', effect, error);
           }
         }
       }
-    }).catch(() => {});
+    });
+    this.trimCache();
+    return played;
+  }
+
+  private trimCache() {
+    // Keep the active palette and recent previews, rather than decoding all 104 files.
+    const selected = new Set(BUTTON_SOUND_KINDS.map(kind => resolveButtonSound(kind, this.preferences)));
+    for (const effect of new Set([...this.sounds.keys(), ...this.nativeReady])) {
+      if (this.sounds.size + this.nativeReady.size <= 24) break;
+      if (selected.has(effect) || this.queues.has(effect) || this.loads.has(effect)) continue;
+      const sound = this.sounds.get(effect);
+      this.sounds.delete(effect);
+      if (sound) void sound.unloadAsync().catch(() => {});
+      if (this.nativeReady.delete(effect)) this.native?.unload?.(effect);
+    }
+  }
+
+  private async savePreferences(preferences: ButtonSoundPreferences): Promise<void> {
+    const previous = this.preferences;
+    this.customizationRevision++;
+    this.preferences = preferences;
+    this.playbackEpoch++; // A queued old theme cannot play after a new choice.
+    this.preferenceListeners.forEach(listener => listener(preferences));
+    const value = JSON.stringify(preferences);
+    const write = this.preferenceWrites.catch(() => {}).then(() => AsyncStorage.setItem(CUSTOMIZATION_KEY, value));
+    this.preferenceWrites = write;
+    try { await write; }
+    catch (error) {
+      if (this.preferences === preferences) {
+        this.preferences = previous;
+        this.playbackEpoch++;
+        this.preferenceListeners.forEach(listener => listener(previous));
+      }
+      throw error;
+    }
+    if (this.initializing) await this.initializing;
+    await this.initialize();
+    this.trimCache();
+  }
+
+  async setTheme(theme: SoundThemeId): Promise<void> {
+    await this.loadPreference();
+    if (!SOUND_THEMES.some(item => item.id === theme)) return;
+    await this.savePreferences({ theme, overrides: {} });
+  }
+
+  async setOverride(kind: ButtonSoundKind, choice?: SoundChoice): Promise<void> {
+    await this.loadPreference();
+    const overrides = { ...this.preferences.overrides };
+    if (choice === undefined) delete overrides[kind];
+    else if (choice === 'silent' || Object.hasOwn(SOUND_EFFECTS, choice)) overrides[kind] = choice;
+    else return;
+    await this.savePreferences({ ...this.preferences, overrides });
   }
 
   async setEnabled(enabled: boolean): Promise<void> {
+    const preferencesReady = this.loadPreference();
     this.enabled = enabled;
     this.preferenceRevision++;
-    this.preferenceLoaded = true;
     this.listeners.forEach(listener => listener(enabled));
     this.native?.setEnabled(enabled);
     const saved = AsyncStorage.setItem(SOUND_PREFERENCE_KEY, String(enabled)).catch(() => {});
@@ -197,6 +274,7 @@ class ButtonSoundService {
       ));
     }
     await saved;
+    await preferencesReady;
     if (enabled && this.enabled) await this.initialize();
   }
 
