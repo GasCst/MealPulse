@@ -31,6 +31,7 @@ All Open Food Facts search and barcode results pass through the same normalizer 
 - **Missing and conflicting data**: reject incomplete or impossible main nutrition data; flag energy conflicts, sugars above carbs, saturated fat above total fat, salt/sodium inconsistencies and OFF nutrition quality errors. Warnings are consistency checks, not independent laboratory verification. Declared zero remains zero. Missing vitamins/minerals stay unknown, displayed as `—`, and are not guessed from food names.
 - **Current product records**: before logging a selected OFF search result, resolve its exact barcode against the product API (bounded to three simultaneous lookups, with a five-minute cache). If required nutrition is unavailable, the selection remains open with an error instead of logging zeros or falling back to another product.
 - **Visible source**: distinguish OFF, generic-food estimates, AI estimates, manual entries and user-entered labels. OFF entries can expose the exact barcode, product page, label photo and record update date. A record update date does not establish a formulation's current accuracy.
+- **Product photos**: read localized front photos from `selected_images`, flat URL fields and declared image revisions/sizes. Legacy OFF HTTP URLs use HTTPS. Search, barcode, portion and meal details share a cached image component with a loading indicator, bounded alternative attempts, an emoji fallback and retry. Missing product photos are not replaced with a different food or an ingredient/nutrition label. Saved meals can retry other sizes of their original photo.
 - **Label corrections for any food**: open a product's portion editor or a logged meal's details and choose **Correggi dall’etichetta / Correct from label**. Enter values per 100 g or 100 ml and the portion actually consumed. Optional nutrients can remain blank. Salt/sodium convert automatically; A/D/B12 use µg. Private corrections are remembered on that device for the exact barcode only. They never replace another variant by name or brand and do not write to the public OFF database.
 - **Voice/photo/manual input**: voice and plate recognition remain estimates; malformed responses no longer generate invented fallback calories/macros. Voice totals are computed from the parsed items, then shown in the selection list for review before logging. The manual form accepts decimal commas and uses an explicit 100g basis. Catalog, barcode and meal editing scale macros and known micronutrients once for the selected quantity.
 - **Older history and cloud scope**: existing meal calories/macros are preserved. Micronutrients saved before this fix may have been fabricated or converted incorrectly, so they remain unverified/unknown until corrected from a label. Main totals continue to sync to Supabase; extra nutrients, provenance and private barcode corrections currently remain in device storage. There is no claim of cross-device synchronization for those extra fields.
@@ -266,7 +267,7 @@ cd android && ./gradlew bundleRelease
 The output bundle will be located at:
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-The nutrition-data release is **2.5.10**, Android version code **120**. Keep
+The nutrition-data and product-photo release is **2.5.11**, Android version code **121**. Keep
 `app.json` and `android/app/build.gradle` versions synchronized before the next build.
 
 ---
@@ -281,6 +282,7 @@ node --test tools/test_remote_config.cjs
 node --test tools/test_ui_feedback.cjs
 node --test tools/test_morning_briefing.cjs
 node --test tools/test_nutrition_data.cjs
+node --test tools/test_food_images.cjs
 ```
 
 The nutrition suite covers serving/100g conversion, g/mg/µg/IU units, declared zero versus missing values, liquid volumes, quality flags, portion re-editing, barcode-specific label corrections, and malformed photo/voice responses.

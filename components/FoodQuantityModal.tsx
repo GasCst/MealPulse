@@ -1,6 +1,7 @@
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Modal, View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { FoodThumbnail } from './FoodThumbnail';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -191,11 +192,7 @@ export const FoodQuantityModal: React.FC<FoodQuantityModalProps> = ({
             {/* Food Info Summary Card */}
             <View style={[styles.foodSummaryCard, { backgroundColor: isDarkMode ? '#1A2B23' : '#F8FAFC', borderColor: isDarkMode ? '#284437' : '#E2E8F0' }]}>
               <View style={styles.emojiThumb}>
-                {food.imageUrl ? (
-                  <Image source={{ uri: food.imageUrl }} style={styles.thumbImg} resizeMode="contain" />
-                ) : (
-                  <Text style={{ fontSize: 28 }}>{food.emoji}</Text>
-                )}
+                <FoodThumbnail uri={food.imageUrl} alternatives={food.imageUrls} emoji={food.emoji} name={food.name} style={styles.thumbImg} emojiSize={28} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.foodName, { color: colors.textPrimary }]} numberOfLines={1}>

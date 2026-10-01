@@ -1,6 +1,7 @@
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState } from 'react';
-import { Modal, View, Text, ScrollView, StyleSheet, Image, Alert } from 'react-native';
+import { Modal, View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { FoodThumbnail } from './FoodThumbnail';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -140,11 +141,7 @@ export const MealCategoryDetailModal: React.FC<MealCategoryDetailModalProps> = (
                   >
                     {/* Left Icon or Image */}
                     <View style={[styles.foodThumbBox, { backgroundColor: isDarkMode ? '#142019' : '#F1F9F1' }]}>
-                      {item.imageUri ? (
-                        <Image source={{ uri: item.imageUri }} style={styles.foodThumbImg} />
-                      ) : (
-                        <Text style={{ fontSize: 24 }}>{item.emoji || '🍽️'}</Text>
-                      )}
+                      <FoodThumbnail uri={item.imageUri} emoji={item.emoji} name={item.name} style={styles.foodThumbImg} />
                     </View>
 
                     {/* Center Details */}

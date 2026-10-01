@@ -1,5 +1,6 @@
 import { applyProductLabel } from './productNutritionCorrections';
 import { ExtraNutrients, NutritionInfo, readOffNutrition, scaleFoodPortion } from './nutritionData';
+import { readOffProductImages } from './foodImageSources';
 /**
  * Food Database Service — Powered by Open Food Facts (3.3M+ Products)
  * Supports full multilingual live search, barcode lookup, and curated localized staple food library.
@@ -22,6 +23,7 @@ export interface FoodItem extends ExtraNutrients {
   carbsG: number;
   fatG: number;
   imageUrl?: string;
+  imageUrls?: string[];
   barcode?: string;
   nutrition?: NutritionInfo;
   category?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -651,7 +653,7 @@ export class FoodDatabaseService {
     }
 
     const { calories: kcal, proteinG: protein, carbsG: carbs, fatG: fat } = values;
-    const image = p.image_front_small_url || p.image_small_url || p.image_front_url || p.image_url || undefined;
+    const images = readOffProductImages(p, normLang);
     const code = p.code ? String(p.code).trim() : '';
 
     return {
@@ -667,7 +669,8 @@ export class FoodDatabaseService {
       baseWeightG: 100,
       emoji: getFoodEmojiFromName(localizedName),
       ...values,
-      imageUrl: image,
+      imageUrl: images[0],
+      imageUrls: images,
       barcode: code || undefined,
     };
   }

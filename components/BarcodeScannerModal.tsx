@@ -2,7 +2,8 @@ import { NutritionSourcePanel } from './NutritionSourcePanel';
 import { scaleFoodPortion, scaleExtras, correctFoodLabel, nutritionNumber } from '@/services/nutritionData';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Image } from 'react-native';
+import { Modal, View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView } from 'react-native';
+import { FoodThumbnail } from './FoodThumbnail';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLanguage } from '@/context/LanguageContext';
@@ -227,13 +228,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
             {foundFood && (
               <View style={[styles.resultCard, { backgroundColor: isDarkMode ? '#192C22' : '#F8FAFC', borderColor: isDarkMode ? '#2C493A' : '#E2E8F0' }]}>
                 <View style={styles.resultHeader}>
-                  {foundFood.imageUrl ? (
-                    <Image source={{ uri: foundFood.imageUrl }} style={styles.resultImage} resizeMode="contain" />
-                  ) : (
-                    <View style={styles.resultEmojiBox}>
-                      <Text style={{ fontSize: 32 }}>{foundFood.emoji || '🍽️'}</Text>
-                    </View>
-                  )}
+                  <FoodThumbnail uri={foundFood.imageUrl} alternatives={foundFood.imageUrls} emoji={foundFood.emoji} name={foundFood.name} style={styles.resultImage} emojiSize={32} />
 
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={[styles.resultName, { color: colors.textPrimary }]} numberOfLines={2}>

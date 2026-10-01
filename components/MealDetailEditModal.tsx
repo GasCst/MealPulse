@@ -4,7 +4,8 @@ import { NutritionSourcePanel } from './NutritionSourcePanel';
 import { NutritionInfo, ExtraNutrients, scaleExtras, nutritionNumber } from '@/services/nutritionData';
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, ScrollView, StyleSheet, Image, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, TextInput, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { FoodThumbnail } from './FoodThumbnail';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -206,11 +207,7 @@ export const MealDetailEditModal: React.FC<MealDetailEditModalProps> = ({
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
               <View style={[styles.headerIconBadge, { backgroundColor: isDarkMode ? '#1F2E25' : '#F1F9F1' }]}>
-                {meal.imageUri ? (
-                  <Image source={{ uri: meal.imageUri }} style={styles.headerThumbImg} />
-                ) : (
-                  <Text style={{ fontSize: 26 }}>{meal.emoji || '🍽️'}</Text>
-                )}
+                <FoodThumbnail uri={meal.imageUri} emoji={meal.emoji} name={meal.name} style={styles.headerThumbImg} emojiSize={26} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>

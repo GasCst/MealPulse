@@ -1,6 +1,7 @@
 import { TouchableOpacity } from '@/components/ui/FeedbackPressable';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TextInput, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Image } from 'react-native';
+import { View, Text, Modal, TextInput, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import { FoodThumbnail } from './FoodThumbnail';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -445,11 +446,7 @@ export const FoodSearchModal: React.FC<FoodSearchModalProps> = ({
                 >
                   {/* Thumbnail / Emoji */}
                   <View style={styles.emojiBox}>
-                    {item.imageUrl ? (
-                      <Image source={{ uri: item.imageUrl }} style={styles.productThumb} resizeMode="contain" />
-                    ) : (
-                      <Text style={{ fontSize: 24 }}>{item.emoji}</Text>
-                    )}
+                    <FoodThumbnail uri={currentItem.imageUrl} alternatives={currentItem.imageUrls} emoji={item.emoji} name={item.name} style={styles.productThumb} />
                   </View>
 
                   {/* Food Info & Macros */}
